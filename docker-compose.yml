@@ -1,0 +1,38 @@
+# The broker with Postgres. Instrument masters are read from ./data/instruments
+# (run scripts/fetch-instruments.sh first); the data-protection keys that
+# encrypt TOTP secrets live in the broker-keys volume and must be backed up
+# together with broker-db.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: openfno_broker
+      POSTGRES_USER: broker
+      POSTGRES_PASSWORD: ${BROKER_DB_PASSWORD:-broker}
+    volumes:
+      - broker-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U broker -d openfno_broker"]
+      interval: 5s
+      retries: 10
+
+  broker:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      Broker__Storage: Postgres
+      Broker__ConnectionString: Host=postgres;Database=openfno_broker;Username=broker;Password=${BROKER_DB_PASSWORD:-broker}
+      Broker__AdminKey: ${BROKER_ADMIN_KEY:?Set BROKER_ADMIN_KEY to a long random value}
+      MarketData__Redis__Configuration: ${BROKER_REDIS:-}
+      Exchange__AlwaysOpen: ${BROKER_ALWAYS_OPEN:-false}
+    ports:
+      - "127.0.0.1:5310:8080"
+    volumes:
+      - ./data/instruments:/data/instruments:ro
+      - broker-keys:/data/keys
+
+volumes:
+  broker-db:
+  broker-keys:
