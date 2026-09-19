@@ -37,13 +37,15 @@ real money. This service is the second world, without the money.
 | **Login** | App credentials plus a TOTP code, once a day; sessions end at 06:00 IST; a code works once |
 | **Orders** | Place, modify and cancel for LIMIT and STOP_LIMIT orders on NSE, BSE and MCX cash, F&O and commodities; DAY and IOC validity; tags; the exchange's acknowledgement after a configurable latency; day orders expire at the session close |
 | **Checks** | Instrument, market hours and holidays, whole lots, freeze quantity, tick size, stop-trigger geometry, product by segment, market-order and commodity-IOC bans, margin, holdings, price band, intraday cut-off, rate limits |
-| **Records** | The journal (every event, gap-free, replayed on start), order histories with a timestamp per step, and a request log with auth, rate-limit, queue, decision and journal time per call |
+| **Fills** | A pessimistic matching engine driven by the live quote: an arriving order pays the opposite side's price, a resting order fills when the market trades through it, stops trigger on the last trade, IOC leftovers are cancelled, and nothing fills on a stale quote |
+| **After the fill** | Tradebook, positions netted by symbol and product, holdings, realised and unrealised P&L, and charges per trade: brokerage, STT or CTT, exchange and SEBI fees, stamp duty and GST, at the rates in force on the trading day |
+| **RMS** | Intraday square-off at 15:20 (23:25 on MCX) with the broker's fee, and a kill switch that cancels every order, optionally closes every position, and cannot be lifted by the client until the next day |
+| **End of day** | Day orders expire, intraday positions close, expired contracts settle, futures mark to market, delivery moves into holdings, and the day's profit and charges are posted to the ledger |
+| **Live events** | A WebSocket per account, and one for the back office: every order, trade, funds and kill-switch event the moment it is recorded |
+| **Sandbox** | An offline market that walks prices with a bid, an ask and depth, plus injected faults — slow acknowledgements, exchange rejections, lost responses (504), outages (503), a stopped feed — and an "end the day now" button |
+| **Records** | The journal (every event, gap-free, replayed on start), order histories with a timestamp per step, contract notes, and a request log with auth, rate-limit, queue, decision and journal time per call |
 | **Market** | 1,27,000+ instruments from the FYERS and Dhan public masters; live prices from the OpenFNO platform's Redis tick stream |
-| **Web console** | A back office in the browser: market and feed status, today's totals and latencies, accounts with TOTP onboarding, every order's timeline, the journal, each call's latency split, and a trader terminal that places orders through the public API |
-
-Next: a matching engine that fills against live ticks and depth, with a
-tradebook, positions, holdings, charges, contract notes, MIS square-off and a
-kill switch. See [the roadmap](#roadmap).
+| **Web console** | A back office in the browser: market and feed status, today's totals and latencies, accounts with TOTP onboarding, every order's timeline, positions, trades, holdings, contract notes, the journal, each call's latency split, a sandbox, and a trader terminal that places orders through the public API and watches them fill live |
 
 ![An order's history in the back office: placed, then acknowledged by the simulated exchange 44 ms later](docs/images/order-timeline.jpg)
 
@@ -115,14 +117,15 @@ database. CI starts one.
 
 ## Roadmap
 
-1. **Matching.** Fills from live ticks and depth, partial fills, a tradebook,
-   positions, holdings, realised and unrealised P&L.
-2. **After the fill.** Charges and contract notes (brokerage, STT, exchange
-   and SEBI fees, stamp duty, GST), MIS auto square-off, a client kill switch,
-   end-of-day settlement.
-3. **The OpenFNO engine as a client.** A broker adapter in the platform, with
+Matching, charges, positions, RMS and settlement are done. Next:
+
+1. **The OpenFNO engine as a client.** A broker adapter in the platform, with
    an execution layer that works out an order's fate from the order book
    after a timeout, as it must with a real broker.
+2. **Real margins.** SPAN plus exposure from the exchanges' risk-parameter
+   files, in place of the flat percentages the profile uses now.
+3. **The rest of the order book.** Slicing above the freeze quantity, cover
+   and bracket orders, GTT, and physical settlement of stock derivatives.
 
 ## License
 
