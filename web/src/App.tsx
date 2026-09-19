@@ -6,6 +6,7 @@ import { Accounts } from './pages/Accounts';
 import { Activity } from './pages/Activity';
 import { Overview } from './pages/Overview';
 import { Rules } from './pages/Rules';
+import { Sandbox } from './pages/Sandbox';
 import { SignIn } from './pages/SignIn';
 import { Terminal } from './pages/Terminal';
 
@@ -25,6 +26,7 @@ export function App() {
       <Route path="/activity" element={<Guard><Activity /></Guard>} />
       <Route path="/terminal" element={<Guard><Terminal /></Guard>} />
       <Route path="/rules" element={<Guard><Rules /></Guard>} />
+      <Route path="/sandbox" element={<Guard><Sandbox /></Guard>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

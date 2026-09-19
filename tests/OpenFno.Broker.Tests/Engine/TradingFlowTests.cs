@@ -449,3 +449,48 @@ public class TradingReplayTests
             (await restarted.GetTradesAsync(account.ClientId, new DateOnly(2026, 9, 18))).Value.Select(t => t.TradeId));
     }
 }
+
+public class NetProfitTests
+{
+    /// <summary>
+    /// The owner's BANKNIFTY 57700 PE trade of September 2026: 120 bought at 570
+    /// on the 3rd, sold at 1,670 on the 11th. ₹1,32,000 gross; the charges are
+    /// worked by hand in the commit that added this test.
+    /// </summary>
+    [Fact]
+    public void An_option_trade_nets_its_charges_on_both_legs()
+    {
+        var put = Fixtures.NiftyCall with { Symbol = "NSE:BANKNIFTY26SEP57700PE", Underlying = "BANKNIFTY", LotSize = 30, Strike = 57_700m, Right = OpenFno.Broker.Domain.Instruments.OptionRight.Put };
+        var brokerage = new BrokerageRule(20m, 0.03m);
+
+        var buy = ChargeSchedule.For(put, ProductType.Nrml, OrderSide.Buy, 570m * 120, brokerage.ForFill(570m * 120, 0m), new DateOnly(2026, 9, 3));
+        var sell = ChargeSchedule.For(put, ProductType.Nrml, OrderSide.Sell, 1_670m * 120, brokerage.ForFill(1_670m * 120, 0m), new DateOnly(2026, 9, 11));
+        var gross = PositionMath.Apply(120, 570m, OrderSide.Sell, 120, 1_670m).Realised;
+
+        Assert.Equal(54.01m, buy.Total);
+        Assert.Equal(300.6m, sell.TransactionTax);
+        Assert.Equal(407.27m, sell.Total);
+        Assert.Equal(132_000m, gross);
+        Assert.Equal(131_538.72m, gross - buy.Total - sell.Total);
+    }
+
+    [Fact]
+    public async Task A_position_shows_its_profit_after_charges()
+    {
+        var h = await StartAsync();
+        var account = await h.AccountAsync(funds: 50_000m);
+        h.Quotes.Update(new Quote { Symbol = "NSE:SBIN-EQ", LastPrice = 800m, At = h.Clock.UtcNow, Bid = 799.95m, Ask = 800m, AskQuantity = 100, BidQuantity = 100 });
+        await h.PlaceAsync(account, "NSE:SBIN-EQ", Limit(OrderSide.Buy, 10, 800m));
+        await h.Scheduler.RunAllAsync();
+        h.Clock.Advance(TimeSpan.FromSeconds(1));
+        h.Quotes.Update(new Quote { Symbol = "NSE:SBIN-EQ", LastPrice = 810m, At = h.Clock.UtcNow, Bid = 810m, Ask = 810.05m, AskQuantity = 100, BidQuantity = 100 });
+        await h.PlaceAsync(account, "NSE:SBIN-EQ", Limit(OrderSide.Sell, 10, 810m));
+        await h.Scheduler.RunAllAsync();
+
+        var position = Assert.Single((await h.Engine.GetPositionsAsync(account.ClientId)).Value);
+        var charges = (await h.Engine.GetTradesAsync(account.ClientId, null)).Value.Sum(t => t.Charges.Total);
+        Assert.Equal(100m, position.RealisedToday);
+        Assert.Equal(charges, position.ChargesToday);
+        Assert.Equal(100m - charges, position.NetToday);
+    }
+}

@@ -65,9 +65,127 @@ export interface LedgerEntry {
 export interface Funds {
   clientId: string;
   netDeposits: number;
-  blockedMargin: number;
+  ledgerBalance: number;
+  realisedToday: number;
+  chargesToday: number;
+  cash: number;
+  orderMargin: number;
+  positionMargin: number;
+  unrealised: number;
   available: number;
   ledger: LedgerEntry[];
+}
+
+export interface ChargeBreakdown {
+  brokerage: number;
+  transactionTax: number;
+  exchangeFee: number;
+  sebiFee: number;
+  stampDuty: number;
+  gst: number;
+  other: number;
+  total: number;
+}
+
+export interface Trade {
+  tradeId: string;
+  orderId: string;
+  clientId: string;
+  symbol: string;
+  exchange: Exchange;
+  segment: string;
+  side: Side;
+  product: Product;
+  quantity: number;
+  price: number;
+  maker: boolean;
+  charges: ChargeBreakdown;
+  realised: number;
+  tradingDate: string;
+  at: string;
+  tag: string | null;
+}
+
+export interface Position {
+  symbol: string;
+  exchange: Exchange;
+  segment: string;
+  product: Product;
+  quantity: number;
+  averagePrice: number;
+  lastPrice: number | null;
+  unrealised: number;
+  realisedToday: number;
+  chargesToday: number;
+  netToday: number;
+  buyQuantity: number;
+  buyAverage: number | null;
+  sellQuantity: number;
+  sellAverage: number | null;
+  margin: number;
+  updatedAt: string;
+}
+
+export interface Holding {
+  symbol: string;
+  exchange: Exchange;
+  quantity: number;
+  averagePrice: number;
+  lastPrice: number | null;
+  invested: number;
+  value: number;
+  pnl: number;
+}
+
+export interface ContractNote {
+  clientId: string;
+  name: string;
+  tradingDate: string;
+  trades: Trade[];
+  buyValue: number;
+  sellValue: number;
+  charges: ChargeBreakdown;
+  netTradedValue: number;
+  netAfterCharges: number;
+}
+
+export interface KillSwitch {
+  active: boolean;
+  since: string | null;
+  until: string | null;
+  by: string | null;
+  reason: string | null;
+}
+
+export interface Chaos {
+  extraAckLatencyMs: number;
+  exchangeRejectPercent: number;
+  lostResponsePercent: number;
+  unavailablePercent: number;
+  feedPaused: boolean;
+}
+
+export interface SimulatedQuote {
+  symbol: string;
+  lastPrice: number;
+  bid: number | null;
+  ask: number | null;
+}
+
+export interface SimulatorStatus {
+  running: boolean;
+  symbols: SimulatedQuote[];
+  volatilityPercent: number;
+  intervalMs: number;
+  spreadTicks: number;
+  depthLots: number;
+  steps: number;
+}
+
+export interface DayCloseReport {
+  tradingDate: string;
+  ordersExpired: number;
+  accountsSettled: number;
 }
 
 export interface AccountSummary {
@@ -76,8 +194,11 @@ export interface AccountSummary {
   profileId: string;
   netDeposits: number;
   available: number;
+  realisedToday: number;
   apps: number;
   liveOrders: number;
+  openPositions: number;
+  killSwitch: boolean;
 }
 
 export interface RateLimits {
@@ -187,7 +308,14 @@ export interface Overview {
   alwaysOpen: boolean;
   exchanges: ExchangeStatus[];
   instruments: number;
-  feed: { quotes: number; latestTickAt: string | null };
+  feed: {
+    quotes: number;
+    latestTickAt: string | null;
+    redisConfigured: boolean;
+    redisTicks: number;
+    simulatorRunning: boolean;
+    paused: boolean;
+  };
   broker: {
     tradingDate: string;
     accounts: number;
@@ -195,6 +323,12 @@ export interface Overview {
     ordersToday: Partial<Record<OrderStatus, number>>;
     rejectionsToday: Record<string, number>;
     exchangeAck: Latency | null;
+    tradesToday: number;
+    turnoverToday: number;
+    chargesToday: number;
+    realisedToday: number;
+    openPositions: number;
+    lastClosedDate: string | null;
     lastSeq: number;
   };
   orderRequests: Latency | null;

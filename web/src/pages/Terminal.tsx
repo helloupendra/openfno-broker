@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { OrderDrawer, OrderTable } from '../components/Orders';
 import { Shell } from '../components/Shell';
-import { Badge, ErrorNote, Field, Kv, Modal, Panel, Side, StatusBadge } from '../components/ui';
+import { Pnl, PositionsTable, TradesTable } from '../components/Trading';
+import { Badge, ErrorNote, Field, Kv, Live, Modal, Panel, Side, StatusBadge, Tabs } from '../components/ui';
 import { ApiError, trader, traderSession, type TraderSession } from '../lib/api';
-import { clock, istDateTime, ms, price, rupees } from '../lib/format';
-import type { Funds, Instrument, Order, OrderType, Product, Quote, Validity } from '../lib/types';
+import { clock, istDateTime, istTime, ms, price, rupees } from '../lib/format';
+import type { Funds, Instrument, KillSwitch, Order, OrderType, Position, Product, Quote, Trade, Validity } from '../lib/types';
 import { usePoll } from '../lib/usePoll';
+import { useStream } from '../lib/useStream';
 
 function Login({ onLogin }: { onLogin: (session: TraderSession) => void }) {
   const [form, setForm] = useState({ clientId: '', appId: '', appSecret: '', totp: '' });
@@ -317,62 +319,208 @@ function ModifyOrder({ order, token, onClose, onDone }: { order: Order; token: s
   );
 }
 
-function Book({ session }: { session: TraderSession }) {
-  const orders = usePoll(() => trader.get<Order[]>(session.token, '/orders'), 3000, [session.token]);
-  const funds = usePoll(() => trader.get<Funds>(session.token, '/funds'), 5000, [session.token]);
+type DeskTab = 'orders' | 'positions' | 'trades';
+
+function KillSwitchButton({ session, onChanged }: { session: TraderSession; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [squareOff, setSquareOff] = useState(true);
+  const [error, setError] = useState<ApiError | null>(null);
+  const state = usePoll(() => trader.get<KillSwitch>(session.token, '/kill-switch'), 15_000, [session.token]);
+
+  async function activate() {
+    setError(null);
+    try {
+      await trader.post(session.token, '/kill-switch', { active: true, squareOff });
+      setOpen(false);
+      state.reload();
+      onChanged();
+    } catch (err) {
+      setError(err as ApiError);
+    }
+  }
+
+  if (state.data?.active)
+    return <Badge tone="neg">Kill switch on until {istDateTime(state.data.until)}</Badge>;
+
+  return (
+    <>
+      <button className="btn btn--danger btn--sm" onClick={() => setOpen(true)}>
+        Kill switch
+      </button>
+      {open && (
+        <Modal title="Turn on the kill switch?" onClose={() => setOpen(false)}>
+          <div className="form">
+            <p className="small-note">
+              Every working order is cancelled and no new order is accepted until the next trading day. Only the back office can lift it
+              sooner.
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={squareOff} onChange={(e) => setSquareOff(e.target.checked)} /> Also close every open position at the
+              market
+            </label>
+            <ErrorNote error={error} />
+            <div className="form__actions">
+              <button className="btn btn--ghost" onClick={() => setOpen(false)}>
+                Keep trading
+              </button>
+              <button className="btn btn--danger" onClick={() => void activate()}>
+                Turn it on
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function Desk({ session }: { session: TraderSession }) {
+  const [tab, setTab] = useState<DeskTab>('orders');
+  const orders = usePoll(() => trader.get<Order[]>(session.token, '/orders'), 10_000, [session.token]);
+  const positions = usePoll(() => trader.get<Position[]>(session.token, '/positions'), 5_000, [session.token]);
+  const trades = usePoll(() => trader.get<Trade[]>(session.token, '/trades'), 10_000, [session.token]);
+  const funds = usePoll(() => trader.get<Funds>(session.token, '/funds'), 5_000, [session.token]);
   const [selected, setSelected] = useState<Order | null>(null);
   const [modifying, setModifying] = useState<Order | null>(null);
   const [actionError, setActionError] = useState<ApiError | null>(null);
+  const [lastEvent, setLastEvent] = useState<string | null>(null);
   const detail = usePoll(
     () => (selected ? trader.get<Order>(session.token, `/orders/${selected.orderId}`) : Promise.resolve(null)),
     selected ? 3000 : 0,
     [selected?.orderId],
   );
 
+  const refresh = useDebounced(() => {
+    orders.reload();
+    positions.reload();
+    trades.reload();
+    funds.reload();
+  }, 150);
+  const live = useStream(`/api/v1/stream?access_token=${encodeURIComponent(session.token)}`, (e) => {
+    if (e.event === 'stream.connected') return;
+    setLastEvent(`${e.event} · ${istTime(String(e.at), true)}`);
+    refresh();
+  });
+
   async function cancel(order: Order) {
     setActionError(null);
     try {
       await trader.delete(session.token, `/orders/${order.orderId}`);
-      orders.reload();
-      funds.reload();
+      refresh();
+    } catch (err) {
+      setActionError(err as ApiError);
+    }
+  }
+
+  /** Closes a position with a limit order at the other side of the book, so it crosses at once. */
+  async function exit(position: Position) {
+    setActionError(null);
+    try {
+      const quote = await trader.get<Quote>(session.token, `/quotes?symbol=${encodeURIComponent(position.symbol)}`);
+      const side = position.quantity > 0 ? 'SELL' : 'BUY';
+      const limitPrice = side === 'SELL' ? quote.bid ?? quote.lastPrice : quote.ask ?? quote.lastPrice;
+      await trader.post(session.token, '/orders', {
+        symbol: position.symbol,
+        side,
+        quantity: Math.abs(position.quantity),
+        type: 'LIMIT',
+        product: position.product,
+        validity: 'DAY',
+        limitPrice,
+        triggerPrice: null,
+        tag: 'exit',
+      });
+      refresh();
     } catch (err) {
       setActionError(err as ApiError);
     }
   }
 
   const working = (o: Order) => o.status === 'OPEN' || o.status === 'TRIGGER_PENDING' || o.status === 'PARTIALLY_FILLED' || o.status === 'TRANSIT';
+  const f = funds.data;
 
   return (
-    <Panel
-      title="Today's orders"
-      aside={funds.data && <span className="dim">Available {rupees(funds.data.available)} · blocked {rupees(funds.data.blockedMargin)}</span>}
-      flush
-    >
-      <ErrorNote error={orders.error ?? actionError} />
-      {orders.data && (
-        <OrderTable
-          orders={orders.data}
-          onOpen={setSelected}
-          compact
-          empty="No orders yet today. Place one with the pad."
-          actions={(o) =>
-            working(o) ? (
-              <div className="row-actions">
-                <button className="btn btn--ghost btn--sm" onClick={() => setModifying(o)}>
-                  Modify
+    <div className="stack">
+      <div className="session-bar">
+        <span>
+          <span className="dim">Client</span> <b className="mono">{session.clientId}</b>
+        </span>
+        <span>
+          <span className="dim">Session until</span> <b>{istDateTime(session.expiresAt)}</b>
+        </span>
+        {f && (
+          <>
+            <span>
+              <span className="dim">Available</span> <b className="mono">{rupees(f.available)}</b>
+            </span>
+            <span>
+              <span className="dim">Today after charges</span> <Pnl value={f.realisedToday - f.chargesToday} strong />
+            </span>
+          </>
+        )}
+        <span className="session-bar__live" title={lastEvent ?? 'Waiting for events'}>
+          <Live on={live} /> {live ? 'Live' : 'Reconnecting…'}
+        </span>
+        <KillSwitchButton session={session} onChanged={refresh} />
+      </div>
+      <Panel
+        title={<Tabs tabs={[
+          { id: 'orders', label: 'Orders', count: orders.data?.length },
+          { id: 'positions', label: 'Positions', count: positions.data?.filter((p) => p.quantity !== 0).length },
+          { id: 'trades', label: 'Trades', count: trades.data?.length },
+        ] as const} value={tab} onChange={setTab} />}
+        flush
+      >
+        <ErrorNote error={actionError ?? orders.error} />
+        {tab === 'orders' && orders.data && (
+          <OrderTable
+            orders={orders.data}
+            onOpen={setSelected}
+            compact
+            empty="No orders yet today. Place one with the pad."
+            actions={(o) =>
+              working(o) && o.appId !== 'RMS' ? (
+                <div className="row-actions">
+                  <button className="btn btn--ghost btn--sm" onClick={() => setModifying(o)}>
+                    Modify
+                  </button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => void cancel(o)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : null
+            }
+          />
+        )}
+        {tab === 'positions' && positions.data && (
+          <PositionsTable
+            positions={positions.data}
+            compact
+            actions={(p) =>
+              p.quantity !== 0 ? (
+                <button className="btn btn--ghost btn--sm" onClick={() => void exit(p)}>
+                  Exit
                 </button>
-                <button className="btn btn--ghost btn--sm" onClick={() => void cancel(o)}>
-                  Cancel
-                </button>
-              </div>
-            ) : null
-          }
-        />
-      )}
+              ) : null
+            }
+          />
+        )}
+        {tab === 'trades' && trades.data && <TradesTable trades={trades.data} />}
+      </Panel>
       {selected && <OrderDrawer order={detail.data ?? selected} onClose={() => setSelected(null)} />}
-      {modifying && <ModifyOrder order={modifying} token={session.token} onClose={() => setModifying(null)} onDone={orders.reload} />}
-    </Panel>
+      {modifying && <ModifyOrder order={modifying} token={session.token} onClose={() => setModifying(null)} onDone={refresh} />}
+    </div>
   );
+}
+
+function useDebounced(fn: () => void, ms: number): () => void {
+  const timer = useRef<number | undefined>(undefined);
+  const latest = useRef(fn);
+  latest.current = fn;
+  return useCallback(() => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => latest.current(), ms);
+  }, [ms]);
 }
 
 export function Terminal() {
@@ -423,20 +571,7 @@ export function Terminal() {
       ) : (
         <div className="grid grid--pad">
           <OrderPad session={session} onPlaced={() => setBookKey((k) => k + 1)} />
-          <div className="stack">
-            <div className="session-bar">
-              <span>
-                <span className="dim">Client</span> <b className="mono">{session.clientId}</b>
-              </span>
-              <span>
-                <span className="dim">App</span> <b className="mono">{session.appId}</b>
-              </span>
-              <span>
-                <span className="dim">Session until</span> <b>{istDateTime(session.expiresAt)}</b>
-              </span>
-            </div>
-            <Book key={bookKey} session={session} />
-          </div>
+          <Desk key={bookKey} session={session} />
         </div>
       )}
     </Shell>

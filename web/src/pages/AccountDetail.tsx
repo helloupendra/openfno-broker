@@ -3,15 +3,32 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { OrderDrawer, OrderTable } from '../components/Orders';
 import { JournalList, LatencySummary, RequestTable } from '../components/Requests';
 import { Shell } from '../components/Shell';
-import { Empty, ErrorNote, Field, Kv, Panel, Secret, Stat, Tabs } from '../components/ui';
+import { ContractNoteView, FundsStats, HoldingsTable, LedgerTable, PositionsTable, TradesTable } from '../components/Trading';
+import { Badge, Empty, ErrorNote, Field, Kv, Panel, Secret, Tabs } from '../components/ui';
 import { admin, ApiError } from '../lib/api';
-import { clock, istDateTime, istToday, rupees } from '../lib/format';
-import type { AccountView, Funds, JournalEvent, Order, RegisteredApp, RequestEntry } from '../lib/types';
+import { clock, istDateTime, istToday } from '../lib/format';
+import type {
+  AccountView,
+  ContractNote,
+  Funds,
+  Holding,
+  JournalEvent,
+  KillSwitch,
+  Order,
+  Position,
+  RegisteredApp,
+  RequestEntry,
+  Trade,
+} from '../lib/types';
 import { usePoll } from '../lib/usePoll';
 
 const tabs = [
   { id: 'orders', label: 'Orders' },
+  { id: 'positions', label: 'Positions' },
+  { id: 'trades', label: 'Trades' },
+  { id: 'holdings', label: 'Holdings' },
   { id: 'funds', label: 'Funds' },
+  { id: 'note', label: 'Contract note' },
   { id: 'apps', label: 'API apps' },
   { id: 'journal', label: 'Journal' },
   { id: 'requests', label: 'Requests' },
@@ -60,41 +77,12 @@ function FundsTab({ clientId }: { clientId: string }) {
     }
   }
 
-  const f = funds.data;
   return (
     <>
-      {f && (
-        <div className="stats stats--3">
-          <Stat label="Pay-ins, net" value={rupees(f.netDeposits)} />
-          <Stat label="Margin blocked" value={rupees(f.blockedMargin)} hint="Held by working orders" tone="warn" />
-          <Stat label="Available" value={rupees(f.available)} tone="live" />
-        </div>
-      )}
+      {funds.data && <FundsStats funds={funds.data} />}
       <div className="grid grid--2-1">
         <Panel title="Ledger" flush>
-          {f && f.ledger.length === 0 && <Empty>No money has moved.</Empty>}
-          {f && f.ledger.length > 0 && (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>When (IST)</th>
-                  <th>Entry</th>
-                  <th>Reference</th>
-                  <th className="num">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...f.ledger].reverse().map((l) => (
-                  <tr key={l.seq}>
-                    <td className="mono dim">{istDateTime(l.at)}</td>
-                    <td>{l.kind === 'PAY_IN' ? 'Pay-in' : 'Pay-out'}</td>
-                    <td className="dim">{l.reference}</td>
-                    <td className={l.amount >= 0 ? 'num mono pos' : 'num mono neg'}>{rupees(l.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {funds.data && <LedgerTable ledger={funds.data.ledger} />}
         </Panel>
         <Panel title="Move money">
           <div className="form">
@@ -117,6 +105,90 @@ function FundsTab({ clientId }: { clientId: string }) {
         </Panel>
       </div>
     </>
+  );
+}
+
+function PositionsTab({ clientId }: { clientId: string }) {
+  const positions = usePoll(() => admin.get<Position[]>(`/accounts/${clientId}/positions`), 2000, [clientId]);
+  return (
+    <Panel title="Positions" aside={<span className="dim">Marked at the latest quotes. Net is after charges.</span>} flush>
+      <ErrorNote error={positions.error} />
+      {positions.data && <PositionsTable positions={positions.data} />}
+    </Panel>
+  );
+}
+
+function TradesTab({ clientId }: { clientId: string }) {
+  const [date, setDate] = useState(istToday());
+  const trades = usePoll(() => admin.get<Trade[]>(`/accounts/${clientId}/trades?date=${date}`), 3000, [clientId, date]);
+  return (
+    <Panel
+      title="Tradebook"
+      aside={<input className="input input--sm" type="date" value={date} onChange={(e) => setDate(e.target.value || istToday())} />}
+      flush
+    >
+      <ErrorNote error={trades.error} />
+      {trades.data && <TradesTable trades={trades.data} />}
+    </Panel>
+  );
+}
+
+function HoldingsTab({ clientId }: { clientId: string }) {
+  const holdings = usePoll(() => admin.get<Holding[]>(`/accounts/${clientId}/holdings`), 5000, [clientId]);
+  return (
+    <Panel title="Holdings" flush>
+      <ErrorNote error={holdings.error} />
+      {holdings.data && <HoldingsTable holdings={holdings.data} />}
+    </Panel>
+  );
+}
+
+function ContractNoteTab({ clientId }: { clientId: string }) {
+  const [date, setDate] = useState(istToday());
+  const note = usePoll(() => admin.get<ContractNote>(`/accounts/${clientId}/contract-notes?date=${date}`), 5000, [clientId, date]);
+  return (
+    <Panel
+      title="Contract note"
+      aside={<input className="input input--sm" type="date" value={date} onChange={(e) => setDate(e.target.value || istToday())} />}
+    >
+      <ErrorNote error={note.error} />
+      {note.data && <ContractNoteView note={note.data} />}
+    </Panel>
+  );
+}
+
+function KillSwitchControl({ clientId }: { clientId: string }) {
+  const state = usePoll(() => admin.get<KillSwitch>(`/accounts/${clientId}/kill-switch`), 5000, [clientId]);
+  const [error, setError] = useState<ApiError | null>(null);
+  async function set(active: boolean, squareOff = false) {
+    setError(null);
+    try {
+      await admin.post(`/accounts/${clientId}/kill-switch`, { active, squareOff });
+      state.reload();
+    } catch (err) {
+      setError(err as ApiError);
+    }
+  }
+  if (!state.data) return null;
+  return (
+    <div className="killswitch">
+      {state.data.active ? (
+        <>
+          <Badge tone="neg">Kill switch on until {istDateTime(state.data.until)}</Badge>
+          <button className="btn btn--ghost btn--sm" onClick={() => void set(false)}>
+            Lift it
+          </button>
+        </>
+      ) : (
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => window.confirm('Cancel every working order and block new ones until the next trading day?') && void set(true)}
+        >
+          Kill switch
+        </button>
+      )}
+      {error && <span className="neg small">{error.message}</span>}
+    </div>
   );
 }
 
@@ -271,11 +343,16 @@ export function AccountDetail() {
           / <span className="mono">{clientId}</span> {a && <span className="dim">· {a.name}</span>}
         </>
       }
+      actions={<KillSwitchControl clientId={clientId} />}
     >
       <ErrorNote error={account.error} />
       <Tabs tabs={tabs} value={tab} onChange={(id) => setParams({ tab: id })} />
       {tab === 'orders' && <OrdersTab clientId={clientId} />}
+      {tab === 'positions' && <PositionsTab clientId={clientId} />}
+      {tab === 'trades' && <TradesTab clientId={clientId} />}
+      {tab === 'holdings' && <HoldingsTab clientId={clientId} />}
       {tab === 'funds' && <FundsTab clientId={clientId} />}
+      {tab === 'note' && <ContractNoteTab clientId={clientId} />}
       {tab === 'apps' && a && <AppsTab clientId={clientId} account={a} reload={account.reload} />}
       {tab === 'journal' && <JournalTab clientId={clientId} />}
       {tab === 'requests' && <RequestsTab clientId={clientId} />}

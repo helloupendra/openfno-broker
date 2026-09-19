@@ -108,6 +108,11 @@ const eventTone: Record<string, string> = {
   'order.modified': 'warn',
   'funds.added': 'pos',
   'funds.withdrawn': 'warn',
+  'order.filled': 'pos',
+  'order.triggered': 'warn',
+  'order.exchange_rejected': 'neg',
+  'account.kill_switch': 'neg',
+  'account.day_settled': 'brand',
 };
 
 /** A one-line account of an event, for the journal list. */
@@ -142,6 +147,18 @@ function describe(e: JournalEvent): string {
       return `Order ${String(e.orderId)} cancelled: ${String(e.reason)}`;
     case 'order.expired':
       return `Order ${String(e.orderId)} expired at the session close`;
+    case 'order.triggered':
+      return `Order ${String(e.orderId)} triggered at ${String(e.lastPrice)}`;
+    case 'order.filled': {
+      const charges = (e.charges as { total?: number } | undefined)?.total ?? 0;
+      return `Order ${String(e.orderId)}: ${String(e.quantity)} traded @ ${String(e.price)}, charges ${rupees(charges)}${Number(e.realised) ? `, booked ${rupees(Number(e.realised))}` : ''}`;
+    }
+    case 'order.exchange_rejected':
+      return `Order ${String(e.orderId)} rejected by the exchange: ${String(e.code)}`;
+    case 'account.kill_switch':
+      return e.active ? `Kill switch on (${String(e.by)}): ${String(e.reason)}` : `Kill switch off (${String(e.by)})`;
+    case 'account.day_settled':
+      return `Day ${String(e.tradingDate)} settled: P&L ${rupees(Number(e.realised))}, charges ${rupees(Number(e.charges))}, ${(e.entries as unknown[]).length} settlement line(s)`;
     default:
       return e.event;
   }

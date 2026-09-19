@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shell } from '../components/Shell';
-import { Empty, ErrorNote, Field, Modal, Panel, QrCode, Secret } from '../components/ui';
+import { Pnl } from '../components/Trading';
+import { Badge, Empty, ErrorNote, Field, Modal, Panel, QrCode, Secret } from '../components/ui';
 import { admin, ApiError } from '../lib/api';
 import { rupees } from '../lib/format';
 import type { AccountSummary, OpenedAccount } from '../lib/types';
@@ -101,8 +102,11 @@ export function Accounts() {
                   <th>Profile</th>
                   <th className="num">Pay-ins, net</th>
                   <th className="num">Available</th>
-                  <th className="num">Apps</th>
+                  <th className="num">Realised today</th>
+                  <th className="num">Positions</th>
                   <th className="num">Working orders</th>
+                  <th className="num">Apps</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -115,8 +119,13 @@ export function Accounts() {
                     <td className="dim">{a.profileId.toUpperCase()}</td>
                     <td className="num mono">{rupees(a.netDeposits)}</td>
                     <td className="num mono">{rupees(a.available)}</td>
-                    <td className="num mono">{a.apps}</td>
+                    <td className="num">
+                      <Pnl value={a.realisedToday} />
+                    </td>
+                    <td className="num mono">{a.openPositions}</td>
                     <td className="num mono">{a.liveOrders}</td>
+                    <td className="num mono">{a.apps}</td>
+                    <td>{a.killSwitch && <Badge tone="neg">Kill switch</Badge>}</td>
                   </tr>
                 ))}
               </tbody>

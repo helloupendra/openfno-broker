@@ -10,8 +10,8 @@ export default defineConfig({
   server: {
     port: 5320,
     proxy: {
-      '/api': broker,
-      '/admin': broker,
+      '/api': { target: broker, ws: true },
+      '/admin': { target: broker, ws: true },
       '/openapi': broker,
       '/health': broker,
     },

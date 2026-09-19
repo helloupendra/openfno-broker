@@ -166,6 +166,9 @@ public sealed class PositionState
     /// <summary>Booked since the last settlement.</summary>
     public decimal RealisedToday { get; set; }
 
+    /// <summary>Charges on this position's fills since the last settlement.</summary>
+    public decimal ChargesToday { get; set; }
+
     public int BuyQuantity { get; set; }
     public decimal BuyValue { get; set; }
     public int SellQuantity { get; set; }

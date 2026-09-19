@@ -291,6 +291,7 @@ public sealed class BrokerState
         position.AveragePrice = filled.PositionAfter.AveragePrice;
         position.Margin = filled.PositionAfter.Margin;
         position.RealisedToday += filled.Realised;
+        position.ChargesToday += filled.Charges.Total;
         if (ticket.Side == OrderSide.Buy)
         {
             position.BuyQuantity += filled.Quantity;
@@ -372,6 +373,7 @@ public sealed class BrokerState
         foreach (var position in account.Positions.Values)
         {
             position.RealisedToday = 0m;
+            position.ChargesToday = 0m;
             position.BuyQuantity = 0;
             position.BuyValue = 0m;
             position.SellQuantity = 0;
