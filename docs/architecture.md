@@ -27,8 +27,8 @@ record of every step.
 
 | Project | Holds | Depends on |
 |---|---|---|
-| `OpenFno.Broker.Domain` | Instruments, the order state machine, the broker profile, order rules, margin, the rate limiter, TOTP, the event types. No I/O. | nothing |
-| `OpenFno.Broker.Application` | The engine, its state, the ports it needs (journal, clock, quotes, instruments, scheduler, secret protector), and the request log. | Domain |
+| `OpenFno.Broker.Domain` | Instruments, the order state machine, the broker profile, order rules, margin, matching, charges, position maths, the rate limiter, TOTP, the event types. No I/O. | nothing |
+| `OpenFno.Broker.Application` | The engine, its state, matching, risk, settlement, the ports it needs (journal, clock, quotes, instruments, scheduler, secret protector), the event hub and the request log. | Domain |
 | `OpenFno.Broker.Infrastructure` | The Postgres journal and request-log writer, the Redis tick feed, the instrument-master and calendar loaders, data protection. | Application |
 | `OpenFno.Broker.Api` | HTTP: endpoints, filters, request tracing, hosting. | Infrastructure |
 
@@ -82,17 +82,24 @@ A modify or cancel that is refused on an existing order is journaled as
 ## Order lifecycle
 
 ```
-            place ─▶ TRANSIT ──(exchange ack)──▶ OPEN ◀──modify──▶ TRIGGER_PENDING
-               │         │                        │ │                    │
-               ▼         │                 cancel │ │ session close      │
-           REJECTED      │ (IOC, nothing          ▼ ▼                    ▼
-                         │  to match)       CANCELLED  EXPIRED    (same exits)
-                         └──────────────▶ CANCELLED
+   place ─▶ TRANSIT ──(exchange ack)──▶ OPEN ◀── modify ──▶ TRIGGER_PENDING
+      │        │                        │  │                      │
+      │        │ (exchange reject,      │  │ part fills           │ trigger
+      ▼        │  IOC with nothing      │  ▼                      ▼
+  REJECTED     │  to match)             │ PARTIALLY_FILLED ──▶ FILLED
+               │                        │  │
+               ▼                        ▼  ▼
+           CANCELLED              CANCELLED / EXPIRED  (the unfilled part)
 ```
 
 `OrderLifecycle` is the table of allowed moves. `OrderState.MoveTo` checks
 every move against it, so an impossible history (a fill after a cancel) throws
 instead of being recorded.
+
+A fill moves the order to `PARTIALLY_FILLED` and then to `FILLED`; what is
+left of a partly filled order can still be cancelled, or expires with the
+session. An order the exchange refuses after accepting it (the sandbox can
+make that happen) ends as `REJECTED` with `EXCHANGE_REJECTED`.
 
 An accepted order is `TRANSIT` until the simulated exchange acknowledges it.
 The acknowledgement comes after a configurable latency: `Exchange:AckLatencyMs`
@@ -100,6 +107,86 @@ plus up to `Exchange:AckJitterMs` of jitter. An order in transit cannot be
 modified or cancelled yet (`ORDER_IN_TRANSIT`), which a real engine has to
 handle. The order history records both timestamps, and the back office reports
 the acknowledgement time as p50/p95.
+
+## Matching
+
+The broker does not see a real order book, only a quote: best bid, best ask,
+their sizes and the last trade. `MatchingService` listens to the quote book
+and matches an order the moment its symbol's quote changes; a symbol with no
+working order costs one dictionary lookup, and a burst of ticks for one symbol
+collapses into a single match.
+
+`Matcher.Match` leans pessimistic on purpose, so a strategy never gets a fill
+here that it would not get in the market:
+
+| Situation | What happens |
+|---|---|
+| An arriving order crosses the spread | Fills at the *opposite* side's price, for at most the quantity shown there |
+| A resting order is crossed | Fills at its own limit price |
+| A trade prints exactly at a resting order's price | Nothing. Its place in the queue is unknown. `Exchange:FillOnTouch` turns this into a fill |
+| The market trades through a resting order | Fills at its limit price |
+| A stop's trigger is reached by the last trade | It becomes a live order, then matches under the rules above |
+| An IOC order does not fill at once | The rest is cancelled |
+| The quote is older than `Exchange:MaxQuoteAgeSeconds` (120 s), or the feed is paused, or the market is closed | Nothing matches |
+
+A fill is one event. It carries everything computed at that moment — price,
+quantity, charges, the margin left blocked, realised profit and the position
+after it — so a replay of the journal never re-prices anything.
+
+## Money
+
+Each account holds a ledger balance, today's realised profit and today's
+charges, and the engine works out the rest:
+
+```
+cash      = ledger balance + realised today − charges today
+available = cash − margin blocked by working orders − margin held by positions
+            + min(0, unrealised P&L)
+```
+
+An unrealised profit cannot be spent; an unrealised loss is taken away at
+once, as a broker's RMS does. The margin of an order that *closes* an existing
+position is zero, after allowing for other working orders already closing it,
+so an exit is never refused for want of funds.
+
+Positions net by symbol and product, with an average price for each side, and
+carry the day's realised profit and charges. A delivery buy becomes a holding
+at the day's close.
+
+## End of day
+
+`MarketClockService` sweeps every few seconds (`Broker:ClockSweepSeconds`) and
+does three jobs: expire day orders whose session has closed, square off
+intraday positions past their exchange's square-off time, and, once past
+`Exchange:SettlementTime` (23:58 IST), settle the trading day. What settlement
+does, and how it differs from a real exchange's, is in
+[rules.md](rules.md#9-end-of-day).
+
+## Live events
+
+`EventHub` broadcasts every journaled event as it is applied. Two WebSocket
+endpoints read it: `/api/v1/stream?access_token=…` for one account, and
+`/admin/stream?key=…` for every account. The first message is
+`{"event":"stream.connected"}`; then each event arrives as the journal stores
+it, with secrets redacted. This is how a client learns that an order was
+acknowledged, triggered, filled or rejected without polling.
+
+## The sandbox
+
+Three switches make failures reproducible, all off by default and all changed
+from the back office at runtime:
+
+- **A market that moves.** `MarketSimulator` walks a random price per symbol
+  and publishes a bid, an ask and depth into the quote book, as if the feed
+  had sent them. Orders then trigger and fill at a weekend or at night. It
+  must not run on symbols the live feed also prices.
+- **Chaos.** `ChaosSettings` adds latency to exchange acknowledgements, makes
+  the exchange reject a share of orders after accepting them, answers a share
+  of successful calls with `504` (the broker did the work, the client never
+  heard), refuses a share with `503`, and pauses the feed. A client that
+  survives these survives a real broker's bad afternoon.
+- **End the day now.** `POST /admin/end-of-day` runs settlement for any date,
+  so a whole trading day takes a minute to rehearse.
 
 ## Latency tracing
 
@@ -142,9 +229,10 @@ gets the console's index page. An unknown API route still gets a JSON `404`.
 |---|---|---|
 | Overview | Market status, the feed, today's orders and rejections, p50/p95 of order calls and exchange acknowledgements, live client calls | `/admin/overview`, `/admin/requests` |
 | Accounts | Accounts; opening one shows its TOTP secret as a QR code, once | `/admin/accounts` |
-| Account | Order book with each order's timeline, funds and ledger, API apps, journal, request latencies, the profile's limits | `/admin/accounts/{id}/…` |
+| Account | Order book with each order's timeline, positions, trades, holdings, the day's contract note, funds and ledger, API apps, journal, request latencies, the kill switch | `/admin/accounts/{id}/…` |
 | Activity | Every call, refusals and failed logins included | `/admin/requests` |
-| Trader terminal | Log in as a client and place, modify and cancel orders | the public `/api/v1` API, with a bearer token |
+| Trader terminal | Log in as a client, place, modify and cancel orders, watch positions and trades update live, exit a position, pull the kill switch | the public `/api/v1` API and `/api/v1/stream`, with a bearer token |
+| Sandbox | Run the offline market, inject chaos, end the trading day | `/admin/simulator`, `/admin/chaos`, `/admin/end-of-day` |
 | Rules & calendar | The profile, instrument lookup, a hand-set quote, the holiday calendar with circulars | `/admin/profiles`, `/admin/calendar`, `/admin/instruments` |
 
 The back office keeps the admin key in the tab's `sessionStorage`. The
@@ -164,9 +252,11 @@ orders pass the static-IP check and rate limits like any client's.
 
 ## Not built yet
 
-- A matching engine. Orders rest; nothing fills yet. Next: fills from live
-  ticks and depth, partial fills, tradebook, positions, holdings, P&L, charges
-  and contract notes.
-- Intraday auto square-off, a client kill switch, end-of-day settlement.
-- SPAN margins from exchange files.
+- SPAN plus exposure margin from the exchanges' risk-parameter files. The
+  margin model is a flat percentage per segment (see
+  [rules.md](rules.md#margin-model)).
+- A real order book with queue position. Matching works off one quote per
+  symbol, which is why it refuses to fill on a touch.
+- Physical settlement of stock derivatives, and T+1 delivery.
 - Snapshots, so that replay stays fast as the journal grows.
+- Order slicing above the freeze quantity, cover and bracket orders, GTT.
