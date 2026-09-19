@@ -1,5 +1,7 @@
 bin/
 obj/
+node_modules/
+*.tsbuildinfo
 .vs/
 .vscode/
 .idea/
@@ -17,3 +19,6 @@ data/instruments/
 
 # Data-protection keys written by a local run
 data/keys/
+
+# The built web console (web/ builds into it)
+src/OpenFno.Broker.Api/wwwroot/

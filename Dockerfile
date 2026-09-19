@@ -1,8 +1,16 @@
 # syntax=docker/dockerfile:1
+FROM node:24-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build -- --outDir /console
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props OpenFno.Broker.slnx ./
 COPY src/ src/
+COPY --from=web /console src/OpenFno.Broker.Api/wwwroot/
 RUN dotnet publish src/OpenFno.Broker.Api -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

@@ -86,6 +86,8 @@ if (brokerOptions.Storage == StorageKind.Postgres)
 var app = builder.Build();
 
 app.UseMiddleware<RequestTraceMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapOpenApi();
 
 app.MapGet("/health", (BrokerEngine engine, IInstrumentCatalog instruments, IQuoteBook quotes, IOptions<BrokerOptions> options) =>
@@ -103,6 +105,7 @@ app.MapOrderEndpoints();
 app.MapAccountEndpoints();
 app.MapAdminEndpoints();
 app.MapBackOfficeEndpoints();
+app.MapWebConsole();
 
 app.Run();
 

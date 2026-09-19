@@ -8,12 +8,15 @@ namespace OpenFno.Broker.Api.Endpoints;
 
 public static class SessionEndpoints
 {
-    /// <summary>Login attempts per caller IP, generous for a person and useless for guessing six-digit codes.</summary>
+    /// <summary>
+    /// Login attempts per caller IP: room for a few programs behind one office
+    /// address, and far too few to guess a six-digit code before it changes.
+    /// </summary>
     private static readonly RateLimitPolicy LoginPolicy = new()
     {
         OrderOpsPerSecond = 0,
-        RequestsPerSecond = 2,
-        RequestsPerMinute = 10,
+        RequestsPerSecond = 5,
+        RequestsPerMinute = 30,
         RequestsPerDay = 500,
         MinuteBreachesAllowedPerDay = 5,
     };

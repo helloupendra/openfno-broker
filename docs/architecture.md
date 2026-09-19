@@ -132,6 +132,25 @@ entry to the Postgres `request_log` table in batches, off the request path.
   from the exchanges' holiday circulars. It covers full closures, MCX
   half-day closures and special sessions such as a Sunday budget session.
 
+## The web console
+
+`web/` is a React and TypeScript single-page app, built into the API's
+`wwwroot` and served by the broker itself. Any path that is not an API route
+gets the console's index page. An unknown API route still gets a JSON `404`.
+
+| Page | Shows | Reads |
+|---|---|---|
+| Overview | Market status, the feed, today's orders and rejections, p50/p95 of order calls and exchange acknowledgements, live client calls | `/admin/overview`, `/admin/requests` |
+| Accounts | Accounts; opening one shows its TOTP secret as a QR code, once | `/admin/accounts` |
+| Account | Order book with each order's timeline, funds and ledger, API apps, journal, request latencies, the profile's limits | `/admin/accounts/{id}/…` |
+| Activity | Every call, refusals and failed logins included | `/admin/requests` |
+| Trader terminal | Log in as a client and place, modify and cancel orders | the public `/api/v1` API, with a bearer token |
+| Rules & calendar | The profile, instrument lookup, a hand-set quote, the holiday calendar with circulars | `/admin/profiles`, `/admin/calendar`, `/admin/instruments` |
+
+The back office keeps the admin key in the tab's `sessionStorage`. The
+terminal takes no shortcuts: it logs in with an app and a TOTP code, and its
+orders pass the static-IP check and rate limits like any client's.
+
 ## Security
 
 | Concern | How it is handled |
