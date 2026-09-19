@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 using OpenFno.Broker.Domain.Orders;
+using OpenFno.Broker.Domain.Trading;
 
 namespace OpenFno.Broker.Domain.Events;
 
@@ -28,6 +29,12 @@ namespace OpenFno.Broker.Domain.Events;
 [JsonDerivedType(typeof(OrderAmendRejected), "order.amend_rejected")]
 [JsonDerivedType(typeof(OrderCancelled), "order.cancelled")]
 [JsonDerivedType(typeof(OrderExpired), "order.expired")]
+[JsonDerivedType(typeof(OrderTriggered), "order.triggered")]
+[JsonDerivedType(typeof(OrderFilled), "order.filled")]
+[JsonDerivedType(typeof(OrderExchangeRejected), "order.exchange_rejected")]
+[JsonDerivedType(typeof(KillSwitchChanged), "account.kill_switch")]
+[JsonDerivedType(typeof(DaySettled), "account.day_settled")]
+[JsonDerivedType(typeof(TradingDayClosed), "broker.day_closed")]
 public abstract record BrokerEvent
 {
     /// <summary>Position in the journal, gap-free from 1.</summary>
@@ -155,4 +162,74 @@ public sealed record OrderCancelled : BrokerEvent
 public sealed record OrderExpired : BrokerEvent
 {
     public required string OrderId { get; init; }
+}
+
+/// <summary>A stop order's trigger price was reached; it now rests as a limit order.</summary>
+public sealed record OrderTriggered : BrokerEvent
+{
+    public required string OrderId { get; init; }
+    public required decimal LastPrice { get; init; }
+}
+
+/// <summary>
+/// Part or all of an order traded. Carries everything the fill changed, so a
+/// replay applies it without looking at prices, rates or rules again.
+/// </summary>
+public sealed record OrderFilled : BrokerEvent
+{
+    public required string OrderId { get; init; }
+    public required string TradeId { get; init; }
+    public required int Quantity { get; init; }
+    public required decimal Price { get; init; }
+
+    /// <summary>True when the order was resting and was filled at its own price; false when it took the market.</summary>
+    public required bool Maker { get; init; }
+
+    public required ChargeBreakdown Charges { get; init; }
+
+    /// <summary>Margin the order still blocks for its unfilled part.</summary>
+    public required decimal OrderMarginAfter { get; init; }
+
+    /// <summary>Profit or loss this fill booked by closing part of a position.</summary>
+    public required decimal Realised { get; init; }
+
+    public required PositionSnapshot PositionAfter { get; init; }
+}
+
+/// <summary>The simulated exchange refused an order it had received (chaos mode).</summary>
+public sealed record OrderExchangeRejected : BrokerEvent
+{
+    public required string OrderId { get; init; }
+    public required string Code { get; init; }
+    public required string Message { get; init; }
+}
+
+/// <summary>The account's kill switch was turned on or off. While on, no new order is accepted.</summary>
+public sealed record KillSwitchChanged : BrokerEvent
+{
+    public required bool Active { get; init; }
+    public DateTimeOffset? Until { get; init; }
+    public required string By { get; init; }
+    public required string Reason { get; init; }
+}
+
+/// <summary>An account's end-of-day settlement for one trading date.</summary>
+public sealed record DaySettled : BrokerEvent
+{
+    public required DateOnly TradingDate { get; init; }
+    public required IReadOnlyList<SettlementEntry> Entries { get; init; }
+
+    /// <summary>Profit or loss booked during the day and by settlement, posted to the ledger.</summary>
+    public required decimal Realised { get; init; }
+
+    /// <summary>The day's charges, posted to the ledger.</summary>
+    public required decimal Charges { get; init; }
+}
+
+/// <summary>The broker finished a trading date: every account is settled. The next settlement starts after it.</summary>
+public sealed record TradingDayClosed : BrokerEvent
+{
+    public const string Broker = "BROKER";
+
+    public required DateOnly TradingDate { get; init; }
 }

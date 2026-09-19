@@ -1,4 +1,5 @@
 using OpenFno.Broker.Domain.Instruments;
+using OpenFno.Broker.Domain.Trading;
 
 namespace OpenFno.Broker.Domain.Rules;
 
@@ -36,6 +37,14 @@ public sealed record BrokerProfile
     public required IReadOnlyDictionary<Exchange, TimeOnly> IntradayCutoff { get; init; }
 
     public required MarginRates Margins { get; init; }
+
+    public required BrokerageRule Brokerage { get; init; }
+
+    /// <summary>At this IST time the broker closes every open intraday (MIS) position on the exchange.</summary>
+    public required IReadOnlyDictionary<Exchange, TimeOnly> AutoSquareOff { get; init; }
+
+    /// <summary>The broker's fee for each position it squares off, before GST.</summary>
+    public decimal AutoSquareOffCharge { get; init; }
 
     /// <summary>A cash-market limit price further than this from the reference price is refused.</summary>
     public decimal CashPriceBandPercent { get; init; } = 20m;
@@ -101,6 +110,14 @@ public static class BrokerProfiles
             [Exchange.Mcx] = new(23, 0),
         },
         Margins = new MarginRates(),
+        Brokerage = new BrokerageRule(FlatPerOrder: 20m, PercentOfTurnover: 0.03m),
+        AutoSquareOff = new Dictionary<Exchange, TimeOnly>
+        {
+            [Exchange.Nse] = new(15, 20),
+            [Exchange.Bse] = new(15, 20),
+            [Exchange.Mcx] = new(23, 25),
+        },
+        AutoSquareOffCharge = 50m,
     };
 
     public static readonly IReadOnlyDictionary<string, BrokerProfile> All =

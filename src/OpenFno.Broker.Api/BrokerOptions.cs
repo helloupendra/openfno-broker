@@ -30,5 +30,6 @@ public sealed class BrokerOptions
     /// </summary>
     public string? ClientIpHeader { get; set; }
 
-    public int ExpirySweepSeconds { get; set; } = 30;
+    /// <summary>How often the market clock expires orders, squares off intraday positions and settles the day.</summary>
+    public int ClockSweepSeconds { get; set; } = 5;
 }

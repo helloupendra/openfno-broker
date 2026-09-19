@@ -40,6 +40,9 @@ public interface IQuoteBook
 {
     Quote? Find(string symbol);
     void Update(Quote quote);
+
+    /// <summary>Raised after a quote replaces an older one: the cue for matching.</summary>
+    event Action<Quote>? Updated;
 }
 
 /// <summary>Encrypts secrets the broker must be able to read back (TOTP seeds) before they reach the journal.</summary>

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenFno.Broker.Application.Abstractions;
+using OpenFno.Broker.Application.Live;
 using OpenFno.Broker.Domain.Market;
 using StackExchange.Redis;
 
@@ -34,15 +35,19 @@ public sealed class RedisTickFeed : BackgroundService
     private readonly RedisFeedOptions _options;
     private readonly IQuoteBook _quotes;
     private readonly IClock _clock;
+    private readonly ChaosSettings _chaos;
     private readonly ILogger<RedisTickFeed> _logger;
 
-    public RedisTickFeed(IOptions<RedisFeedOptions> options, IQuoteBook quotes, IClock clock, ILogger<RedisTickFeed> logger)
+    public RedisTickFeed(IOptions<RedisFeedOptions> options, IQuoteBook quotes, IClock clock, ChaosSettings chaos, ILogger<RedisTickFeed> logger)
     {
         _options = options.Value;
         _quotes = quotes;
         _clock = clock;
+        _chaos = chaos;
         _logger = logger;
     }
+
+    public bool Configured => !string.IsNullOrWhiteSpace(_options.Configuration);
 
     public long TicksRead { get; private set; }
 
@@ -95,6 +100,7 @@ public sealed class RedisTickFeed : BackgroundService
             foreach (var entry in entries)
             {
                 position = entry.Id;
+                if (_chaos.FeedPaused) continue;
                 var payload = entry["payload"];
                 if (payload.IsNullOrEmpty) continue;
                 if (ParseTick(payload.ToString(), _clock.UtcNow) is { } quote)

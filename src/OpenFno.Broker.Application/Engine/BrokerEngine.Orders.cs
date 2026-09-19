@@ -11,8 +11,8 @@ public sealed partial class BrokerEngine
     /// <summary>
     /// Places an order. An invalid request is refused with no order created; an
     /// order that fails the risk checks is created as REJECTED; one that passes
-    /// is sent to the exchange (TRANSIT) and acknowledged after the simulated
-    /// exchange latency.
+    /// is sent to the exchange (TRANSIT), acknowledged after the simulated
+    /// exchange latency, and matched against the market from then on.
     /// </summary>
     public Task<Result<OrderView>> PlaceOrderAsync(PlaceOrderCommand command, CommandTiming? timing = null, CancellationToken cancellationToken = default)
         => RunAsync<OrderView>(now =>
@@ -34,7 +34,6 @@ public sealed partial class BrokerEngine
             if (Margin.PriceFor(intent, quote?.LastPrice) is not { } price)
                 return BrokerError.Invalid(ErrorCodes.InvalidPrice,
                     $"There is no last price for {instrument.Symbol} to margin a market-priced order against.");
-            var margin = Margin.Required(instrument, intent, price, profile.Margins);
 
             var tradingDate = Ist.DateOf(now);
             var ticket = new OrderTicket
@@ -59,7 +58,19 @@ public sealed partial class BrokerEngine
                 ClientIp = command.ClientIp,
             };
 
-            var refusal = OrderRules.CheckRisk(instrument, intent, profile, quote, now, margin, account.Available, holdings: 0);
+            Rejection? refusal = account.KillSwitchActive(now)
+                ? new Rejection(ErrorCodes.KillSwitchActive,
+                    $"The kill switch is on until {Ist.ToIst(account.KillSwitch!.Until ?? now):yyyy-MM-dd HH:mm} IST; no new orders are accepted.")
+                : null;
+
+            var increasing = IncreasingQuantity(account, instrument.Symbol, intent.Product, intent.Side, intent.Quantity, null);
+            var margin = OrderMargin(account, instrument, intent, price, null);
+            refusal ??= OrderRules.CheckRisk(instrument, intent, profile, quote, now, margin, Available(account),
+                holdings: intent.Product == ProductType.Cnc && intent.Side == OrderSide.Sell
+                    ? SellableShares(account, instrument.Symbol, null)
+                    : 0,
+                isNewOrder: increasing > 0);
+
             if (refusal is not null)
             {
                 return Outcome<OrderView>.Of(
@@ -67,10 +78,11 @@ public sealed partial class BrokerEngine
                     state => OrderView.From(state.Orders[ticket.OrderId], withHistory: false));
             }
 
+            var ackDelay = _options.NextAckDelay() + TimeSpan.FromMilliseconds(_chaos.ExtraAckLatencyMs);
             return Outcome<OrderView>.Of(
                 new OrderPlaced { ClientId = command.ClientId, Ticket = ticket, BlockedMargin = margin },
                 state => OrderView.From(state.Orders[ticket.OrderId], withHistory: false),
-                () => ScheduleAck(ticket.OrderId, _options.NextAckDelay()));
+                () => ScheduleAck(ticket.OrderId, ackDelay));
         }, timing, cancellationToken);
 
     public Task<Result<OrderView>> ModifyOrderAsync(ModifyOrderCommand command, CommandTiming? timing = null, CancellationToken cancellationToken = default)
@@ -81,6 +93,10 @@ public sealed partial class BrokerEngine
             var profile = account.Profile;
 
             if (AmendBlocker(order, "modify", profile) is { } blocked) return AmendRefused(order, "modify", blocked, ErrorKind.Conflict);
+            if (account.KillSwitchActive(now))
+                return AmendRefused(order, "modify",
+                    new Rejection(ErrorCodes.KillSwitchActive, "The kill switch is on; orders can be cancelled but not modified."),
+                    ErrorKind.Conflict);
 
             var type = command.Type ?? order.Type;
             var isStop = type is OrderType.StopLimit or OrderType.StopMarket;
@@ -102,10 +118,13 @@ public sealed partial class BrokerEngine
                     new Rejection(ErrorCodes.UnknownSymbol, $"{order.Ticket.Symbol} is no longer in the instrument master."),
                     ErrorKind.Conflict);
 
+            // The trigger is checked against the market only while the order will still be waiting for it;
+            // a stop that has already triggered rests as a limit order.
+            var waitsForTrigger = isStop && (order.Status == OrderStatus.TriggerPending || !order.Intent.IsStop);
             var quote = _quotes.Find(instrument.Symbol);
             var invalid = (_options.AlwaysOpen ? null : OrderRules.CheckMarketOpen(instrument, _calendar, now))
                           ?? OrderRules.CheckShape(instrument, merged, profile)
-                          ?? OrderRules.CheckPrices(instrument, merged, quote);
+                          ?? OrderRules.CheckPrices(instrument, merged, waitsForTrigger || !isStop ? quote : null);
             if (invalid is null && merged.Quantity <= order.FilledQuantity)
                 invalid = new Rejection(ErrorCodes.InvalidQuantity,
                     $"Quantity must stay above the {order.FilledQuantity} already filled.");
@@ -119,32 +138,41 @@ public sealed partial class BrokerEngine
                     ErrorKind.Invalid);
 
             var unfilled = merged with { Quantity = merged.Quantity - order.FilledQuantity };
-            var margin = Margin.Required(instrument, unfilled, price, profile.Margins);
+            var margin = OrderMargin(account, instrument, unfilled, price, order.OrderId);
             var refusal = OrderRules.CheckRisk(instrument, merged, profile, quote, now, margin,
-                account.Available + order.BlockedMargin, holdings: 0, isNewOrder: false);
+                Available(account) + order.BlockedMargin,
+                holdings: merged.Product == ProductType.Cnc && merged.Side == OrderSide.Sell
+                    ? SellableShares(account, instrument.Symbol, order.OrderId) + order.FilledQuantity
+                    : 0,
+                isNewOrder: false);
             if (refusal is not null) return AmendRefused(order, "modify", refusal, ErrorKind.Conflict);
 
             var status = order.Status switch
             {
-                OrderStatus.Open when isStop => OrderStatus.TriggerPending,
+                OrderStatus.Open when waitsForTrigger => OrderStatus.TriggerPending,
                 OrderStatus.TriggerPending when !isStop => OrderStatus.Open,
                 var unchanged => unchanged,
             };
 
+            var orderId = order.OrderId;
             return Outcome<OrderView>.Of(
-                new OrderModified
-                {
-                    ClientId = command.ClientId,
-                    OrderId = order.OrderId,
-                    Quantity = merged.Quantity,
-                    Type = merged.Type,
-                    Validity = merged.Validity,
-                    LimitPrice = merged.LimitPrice,
-                    TriggerPrice = merged.TriggerPrice,
-                    BlockedMargin = margin,
-                    Status = status,
-                },
-                state => OrderView.From(state.Orders[order.OrderId], withHistory: false));
+                [
+                    new OrderModified
+                    {
+                        ClientId = command.ClientId,
+                        OrderId = orderId,
+                        Quantity = merged.Quantity,
+                        Type = merged.Type,
+                        Validity = merged.Validity,
+                        LimitPrice = merged.LimitPrice,
+                        TriggerPrice = merged.TriggerPrice,
+                        BlockedMargin = margin,
+                        Status = status,
+                    },
+                ],
+                state => OrderView.From(state.Orders[orderId], withHistory: false),
+                // A modified order meets the market afresh: a new price may now cross the spread.
+                () => _scheduler.Schedule(TimeSpan.Zero, token => MatchOrderAsync(orderId, arriving: true, token)));
         }, timing, cancellationToken);
 
     public Task<Result<OrderView>> CancelOrderAsync(string clientId, string orderId, CommandTiming? timing = null, CancellationToken cancellationToken = default)
@@ -160,34 +188,40 @@ public sealed partial class BrokerEngine
         }, timing, cancellationToken);
 
     /// <summary>
-    /// The simulated exchange's acknowledgement of an order in transit. An IOC
-    /// order that finds nothing to trade against is cancelled at once; until the
-    /// matching engine arrives, that is every IOC order.
+    /// The simulated exchange's acknowledgement of an order in transit, and the
+    /// order's first look at the market: it may fill at once, trigger, or (IOC)
+    /// cancel whatever cannot fill immediately.
     /// </summary>
     public async Task AcknowledgeAsync(string orderId, CancellationToken cancellationToken = default)
     {
-        await RunAsync<bool>(_ =>
+        await RunAsync<bool>(now =>
         {
             if (!_state.Orders.TryGetValue(orderId, out var order) || order.Status != OrderStatus.Transit)
                 return Outcome<bool>.Nothing(false);
 
             var clientId = order.Ticket.ClientId;
+            if (!order.IsSystem && _chaos.Roll(_chaos.ExchangeRejectPercent))
+                return Outcome<bool>.Of(
+                    new OrderExchangeRejected
+                    {
+                        ClientId = clientId,
+                        OrderId = orderId,
+                        Code = ErrorCodes.ExchangeRejected,
+                        Message = "The exchange rejected the order (simulated fault, chaos mode).",
+                    },
+                    _ => true);
+
+            var status = order.Intent.IsStop ? OrderStatus.TriggerPending : OrderStatus.Open;
             var events = new List<BrokerEvent>
             {
-                new OrderAccepted
-                {
-                    ClientId = clientId,
-                    OrderId = orderId,
-                    Status = order.Intent.IsStop ? OrderStatus.TriggerPending : OrderStatus.Open,
-                },
+                new OrderAccepted { ClientId = clientId, OrderId = orderId, Status = status },
             };
-            if (order.Validity == Validity.Ioc && !order.Intent.IsStop)
-                events.Add(new OrderCancelled
-                {
-                    ClientId = clientId,
-                    OrderId = orderId,
-                    Reason = "IOC: nothing to trade against immediately; the rest is cancelled.",
-                });
+
+            if (_state.Account(clientId).KillSwitchActive(now))
+                events.Add(new OrderCancelled { ClientId = clientId, OrderId = orderId, Reason = "Kill switch: the order arrived after it was turned on." });
+            else
+                events.AddRange(PlanMatch(order, status, now, arriving: true));
+
             return Outcome<bool>.Of(events, _ => true);
         }, null, cancellationToken);
     }
@@ -238,6 +272,8 @@ public sealed partial class BrokerEngine
             return new(ErrorCodes.OrderInTransit, "The order is still on its way to the exchange; try again in a moment.");
         if (!OrderLifecycle.IsWorking(order.Status))
             return new(ErrorCodes.OrderNotModifiable, $"The order is {order.Status} and can no longer be changed.");
+        if (order.IsSystem)
+            return new(ErrorCodes.OrderNotModifiable, "The order was placed by the broker's RMS and cannot be changed.");
         if (action == "modify" && profile.MaxModificationsPerOrder is { } max && order.Modifications >= max)
             return new(ErrorCodes.ModificationLimit, $"An order can be modified at most {max} times.");
         return null;

@@ -25,17 +25,20 @@ public static class OrderEndpoints
         orders.MapPost("", PlaceAsync)
             .FromStaticIp()
             .RateLimited(orderOperation: true)
+            .WithChaos()
             .WithSummary("Place an order")
             .WithDescription("An invalid order is refused with 400 and no order is created. An order that fails the broker's risk checks is created with status REJECTED and the reason. A passing order is TRANSIT until the simulated exchange acknowledges it.");
 
         orders.MapPatch("{orderId}", ModifyAsync)
             .FromStaticIp()
             .RateLimited(orderOperation: true)
+            .WithChaos()
             .WithSummary("Modify a working order");
 
         orders.MapDelete("{orderId}", CancelAsync)
             .FromStaticIp()
             .RateLimited(orderOperation: true)
+            .WithChaos()
             .WithSummary("Cancel a working order");
     }
 
