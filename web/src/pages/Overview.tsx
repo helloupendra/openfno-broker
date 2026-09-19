@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Shell } from '../components/Shell';
 import { RequestTable } from '../components/Requests';
+import { Pnl } from '../components/Trading';
 import { Badge, Empty, ErrorNote, Live, Panel, Stat } from '../components/ui';
 import { admin } from '../lib/api';
-import { ago, clock, label, ms, num } from '../lib/format';
+import { ago, clock, label, ms, num, rupees } from '../lib/format';
 import type { Latency, OrderStatus, Overview as OverviewData, RequestEntry } from '../lib/types';
 import { usePoll } from '../lib/usePoll';
 
@@ -80,6 +81,16 @@ export function Overview() {
               tone={(data.broker.ordersToday.REJECTED ?? 0) > 0 ? 'neg' : undefined}
             />
             <Stat
+              label="Trades today"
+              value={num(data.broker.tradesToday)}
+              hint={`Turnover ${rupees(data.broker.turnoverToday)} · ${data.broker.openPositions} open position(s)`}
+            />
+            <Stat
+              label="Clients' P&L today"
+              value={<Pnl value={data.broker.realisedToday - data.broker.chargesToday} strong />}
+              hint={`Realised ${rupees(data.broker.realisedToday)} · charges ${rupees(data.broker.chargesToday)}`}
+            />
+            <Stat
               label="Order call, p50 / p95"
               value={<LatencyValue latency={data.orderRequests} />}
               hint={data.orderRequests ? `Inside the broker · ${data.orderRequests.samples} calls` : 'No orders placed yet'}
@@ -120,6 +131,14 @@ export function Overview() {
                 </div>
                 <div>
                   <span className="dim">Last tick</span> <b>{ago(data.feed.latestTickAt)}</b>
+                </div>
+                <div>
+                  <span className="dim">Source</span>{' '}
+                  <b>
+                    {[data.feed.redisConfigured && 'live feed', data.feed.simulatorRunning && 'offline market'].filter(Boolean).join(' + ') ||
+                      'hand-set quotes'}
+                  </b>
+                  {data.feed.paused && <Badge tone="warn">paused</Badge>}
                 </div>
               </div>
               {data.alwaysOpen && <div className="note note--warn">Trading hours are ignored (Exchange:AlwaysOpen).</div>}

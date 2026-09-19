@@ -11,6 +11,7 @@ const nav = [
   { to: '/accounts', label: 'Accounts' },
   { to: '/activity', label: 'Activity' },
   { to: '/terminal', label: 'Trader terminal' },
+  { to: '/sandbox', label: 'Sandbox' },
   { to: '/rules', label: 'Rules & calendar' },
 ];
 

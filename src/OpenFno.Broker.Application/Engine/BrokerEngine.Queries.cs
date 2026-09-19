@@ -175,10 +175,13 @@ public sealed partial class BrokerEngine
     private PositionView PositionViewOf(PositionState p)
     {
         var last = _quotes.Find(p.Symbol)?.LastPrice;
+        var unrealised = p.Quantity == 0 ? 0m : PositionMath.Unrealised(p.Quantity, p.AveragePrice, last ?? p.AveragePrice);
         return new PositionView(
             p.Symbol, p.Exchange, p.Segment, p.Product, p.Quantity, p.AveragePrice, last,
-            p.Quantity == 0 ? 0m : PositionMath.Unrealised(p.Quantity, p.AveragePrice, last ?? p.AveragePrice),
+            unrealised,
             p.RealisedToday,
+            p.ChargesToday,
+            p.RealisedToday + unrealised - p.ChargesToday,
             p.BuyQuantity, p.BuyQuantity > 0 ? decimal.Round(p.BuyValue / p.BuyQuantity, 4) : null,
             p.SellQuantity, p.SellQuantity > 0 ? decimal.Round(p.SellValue / p.SellQuantity, 4) : null,
             p.Margin, p.UpdatedAt);

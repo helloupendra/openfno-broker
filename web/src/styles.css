@@ -176,7 +176,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .grid--pad { grid-template-columns: minmax(320px, 370px) minmax(0, 1fr); align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .stats--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
 .stat__label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
@@ -540,3 +540,30 @@ input[type='date'].input { color-scheme: dark; }
   .journal__item { grid-template-columns: 44px 1fr; }
   .journal__item .badge, .journal__text { grid-column: 2; }
 }
+
+/* ---- trading --------------------------------------------------------------- */
+
+.btn--danger { background: var(--neg-soft); border-color: color-mix(in srgb, var(--neg) 55%, transparent); color: var(--neg); }
+.btn--danger:hover:not(:disabled) { border-color: var(--neg); }
+.strong-pnl { font-weight: 700; }
+.row-closed td { color: var(--text-3); }
+.table tfoot td { border-top: 1px solid var(--line); border-bottom: 0; font-size: 12.5px; }
+.killswitch { display: flex; align-items: center; gap: 8px; }
+.session-bar { align-items: center; }
+.session-bar__live { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--text-2); }
+.session-bar .btn--danger { flex: none; }
+.stats--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.note-doc { display: flex; flex-direction: column; gap: 14px; }
+.note-doc__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.note-doc__title { font-weight: 650; font-size: 14px; }
+.note-doc__net { display: flex; flex-direction: column; align-items: flex-end; font-size: 18px; }
+.note-doc__net .dim { font-size: 11.5px; }
+.note-doc__foot { align-items: start; }
+.panel__head .tabs { border-bottom: 0; }
+.panel__head .tab { padding: 4px 10px 6px; }
+@media (max-width: 1200px) { .stats--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .stats--4 { grid-template-columns: 1fr; } }
+
+.sim-rows { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; align-items: flex-start; }
+.sim-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; gap: 8px; width: 100%; }
+.sim-quotes { margin-top: 14px; }

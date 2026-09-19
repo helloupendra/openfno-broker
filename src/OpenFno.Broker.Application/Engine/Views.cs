@@ -88,6 +88,11 @@ public sealed record FundsView(
     decimal Available,
     IReadOnlyList<LedgerEntry> Ledger);
 
+/// <summary>
+/// A position marked at the latest price. <see cref="NetToday"/> is what the
+/// position has made since the last settlement after its charges: realised
+/// plus unrealised, less charges.
+/// </summary>
 public sealed record PositionView(
     string Symbol,
     Exchange Exchange,
@@ -98,6 +103,8 @@ public sealed record PositionView(
     decimal? LastPrice,
     decimal Unrealised,
     decimal RealisedToday,
+    decimal ChargesToday,
+    decimal NetToday,
     int BuyQuantity,
     decimal? BuyAverage,
     int SellQuantity,
