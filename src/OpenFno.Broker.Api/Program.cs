@@ -8,6 +8,7 @@ using OpenFno.Broker.Api.Http;
 using OpenFno.Broker.Application.Abstractions;
 using OpenFno.Broker.Application.Engine;
 using OpenFno.Broker.Application.Journal;
+using OpenFno.Broker.Application.Live;
 using OpenFno.Broker.Application.Market;
 using OpenFno.Broker.Application.Requests;
 using OpenFno.Broker.Domain.Limits;
@@ -47,6 +48,10 @@ builder.Services.AddSingleton<IInstrumentCatalog>(sp =>
     return new InstrumentCatalog(report.Instruments);
 });
 builder.Services.AddSingleton<IQuoteBook, QuoteBook>();
+builder.Services.AddSingleton<ChaosSettings>();
+builder.Services.AddSingleton<EventHub>();
+builder.Services.AddSingleton<MarketSimulator>();
+builder.Services.AddSingleton<RedisTickFeed>();
 builder.Services.Configure<RedisFeedOptions>(builder.Configuration.GetSection(RedisFeedOptions.Section));
 
 // Secrets and scheduling.
@@ -78,13 +83,16 @@ builder.Services.AddSingleton<RateLimiter>();
 
 // Hosted services start in this order, all before the server takes requests.
 builder.Services.AddHostedService<EngineHost>();
-builder.Services.AddHostedService<OrderExpiryService>();
-builder.Services.AddHostedService<RedisTickFeed>();
+builder.Services.AddHostedService<MatchingService>();
+builder.Services.AddHostedService<MarketClockService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RedisTickFeed>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MarketSimulator>());
 if (brokerOptions.Storage == StorageKind.Postgres)
     builder.Services.AddHostedService(sp => sp.GetRequiredService<PostgresRequestLogSink>());
 
 var app = builder.Build();
 
+app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 app.UseMiddleware<RequestTraceMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -103,6 +111,8 @@ app.MapGet("/health", (BrokerEngine engine, IInstrumentCatalog instruments, IQuo
 app.MapSessionEndpoints();
 app.MapOrderEndpoints();
 app.MapAccountEndpoints();
+app.MapTradingEndpoints();
+app.MapStreamEndpoints();
 app.MapAdminEndpoints();
 app.MapBackOfficeEndpoints();
 app.MapWebConsole();

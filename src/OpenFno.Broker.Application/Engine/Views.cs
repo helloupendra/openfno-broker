@@ -1,6 +1,7 @@
 using OpenFno.Broker.Domain.Instruments;
 using OpenFno.Broker.Domain.Orders;
 using OpenFno.Broker.Domain.Rules;
+using OpenFno.Broker.Domain.Trading;
 
 namespace OpenFno.Broker.Application.Engine;
 
@@ -69,16 +70,62 @@ public sealed record OrderView
     };
 }
 
+/// <summary>
+/// An account's money. <see cref="Cash"/> is the ledger plus today's unsettled
+/// profit, loss and charges; <see cref="Available"/> is what a new order may
+/// use: cash less margin held, less any unrealised loss.
+/// </summary>
 public sealed record FundsView(
     string ClientId,
     decimal NetDeposits,
-    decimal BlockedMargin,
+    decimal LedgerBalance,
+    decimal RealisedToday,
+    decimal ChargesToday,
+    decimal Cash,
+    decimal OrderMargin,
+    decimal PositionMargin,
+    decimal Unrealised,
     decimal Available,
-    IReadOnlyList<LedgerEntry> Ledger)
-{
-    public static FundsView From(AccountState account) => new(
-        account.ClientId, account.NetDeposits, account.BlockedMargin, account.Available, account.Ledger.ToList());
-}
+    IReadOnlyList<LedgerEntry> Ledger);
+
+public sealed record PositionView(
+    string Symbol,
+    Exchange Exchange,
+    Segment Segment,
+    ProductType Product,
+    int Quantity,
+    decimal AveragePrice,
+    decimal? LastPrice,
+    decimal Unrealised,
+    decimal RealisedToday,
+    int BuyQuantity,
+    decimal? BuyAverage,
+    int SellQuantity,
+    decimal? SellAverage,
+    decimal Margin,
+    DateTimeOffset UpdatedAt);
+
+public sealed record HoldingView(
+    string Symbol,
+    Exchange Exchange,
+    int Quantity,
+    decimal AveragePrice,
+    decimal? LastPrice,
+    decimal Invested,
+    decimal Value,
+    decimal Pnl);
+
+/// <summary>A day's trades for one account with their charges: the simulated contract note.</summary>
+public sealed record ContractNote(
+    string ClientId,
+    string Name,
+    DateOnly TradingDate,
+    IReadOnlyList<TradeRecord> Trades,
+    decimal BuyValue,
+    decimal SellValue,
+    ChargeBreakdown Charges,
+    decimal NetTradedValue,
+    decimal NetAfterCharges);
 
 public sealed record AppView(
     string AppId,
@@ -154,4 +201,10 @@ public sealed record BrokerOverview(
     IReadOnlyDictionary<OrderStatus, int> OrdersToday,
     IReadOnlyDictionary<string, int> RejectionsToday,
     LatencySummary? ExchangeAck,
+    int TradesToday,
+    decimal TurnoverToday,
+    decimal ChargesToday,
+    decimal RealisedToday,
+    int OpenPositions,
+    DateOnly? LastClosedDate,
     long LastSeq);

@@ -1,5 +1,6 @@
 using OpenFno.Broker.Application.Engine;
 using OpenFno.Broker.Application.Journal;
+using OpenFno.Broker.Application.Live;
 using OpenFno.Broker.Application.Market;
 using OpenFno.Broker.Domain.Market;
 using OpenFno.Broker.Domain.Orders;
@@ -15,6 +16,8 @@ public sealed class EngineHarness
     public InMemoryJournal Journal { get; }
     public QuoteBook Quotes { get; } = new();
     public ExchangeSimulationOptions Options { get; } = new() { AckLatencyMs = 0, AckJitterMs = 0 };
+    public ChaosSettings Chaos { get; } = new();
+    public EventHub Hub { get; } = new();
     public BrokerEngine Engine { get; private set; } = null!;
 
     private EngineHarness(InMemoryJournal journal) => Journal = journal;
@@ -37,7 +40,7 @@ public sealed class EngineHarness
 
     private BrokerEngine Build() => new(
         Journal, Clock, new InstrumentCatalog(Fixtures.All), Quotes, Fixtures.Calendar(),
-        new PrefixProtector(), Scheduler, Options);
+        new PrefixProtector(), Scheduler, Options, Hub, Chaos);
 
     public void Quote(string symbol, decimal last, decimal? previousClose = null)
         => Quotes.Update(new Quote { Symbol = symbol, LastPrice = last, At = Clock.UtcNow, PreviousClose = previousClose });

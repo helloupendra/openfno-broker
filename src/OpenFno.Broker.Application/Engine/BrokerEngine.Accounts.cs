@@ -45,7 +45,7 @@ public sealed partial class BrokerEngine
 
             return Outcome<FundsView>.Of(
                 new FundsAdded { ClientId = clientId, Amount = amount, Reference = CleanReference(reference, "pay-in") },
-                _ => FundsView.From(account));
+                _ => FundsOf(account));
         }, null, cancellationToken);
 
     public Task<Result<FundsView>> WithdrawFundsAsync(string clientId, decimal amount, string? reference, CancellationToken cancellationToken = default)
@@ -53,13 +53,14 @@ public sealed partial class BrokerEngine
         {
             if (!_state.Accounts.TryGetValue(clientId, out var account)) return AccountMissing(clientId);
             if (CheckAmount(amount) is { } invalid) return invalid;
-            if (amount > account.Available)
+            var free = Available(account);
+            if (amount > free)
                 return BrokerError.Conflict(ErrorCodes.InsufficientFunds,
-                    $"Only {OrderRules.Money(account.Available)} is free to withdraw; the rest is margin for working orders.");
+                    $"Only {OrderRules.Money(Math.Max(0m, free))} is free to withdraw; the rest is margin for orders and positions.");
 
             return Outcome<FundsView>.Of(
                 new FundsWithdrawn { ClientId = clientId, Amount = amount, Reference = CleanReference(reference, "pay-out") },
-                _ => FundsView.From(account));
+                _ => FundsOf(account));
         }, null, cancellationToken);
 
     /// <summary>Registers an API app for the account. The secret in the answer is shown only this once.</summary>

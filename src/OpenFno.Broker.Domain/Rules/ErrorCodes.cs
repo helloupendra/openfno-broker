@@ -33,6 +33,10 @@ public static class ErrorCodes
     public const string NoHoldings = "NO_HOLDINGS";
     public const string PriceBand = "PRICE_BAND";
     public const string IntradayCutoff = "INTRADAY_CUTOFF";
+    public const string KillSwitchActive = "KILL_SWITCH_ACTIVE";
+
+    // The simulated exchange refused an order it had received (chaos mode).
+    public const string ExchangeRejected = "EXCHANGE_REJECTED";
 
     // Modify and cancel.
     public const string OrderNotFound = "ORDER_NOT_FOUND";
@@ -61,4 +65,8 @@ public static class ErrorCodes
     public const string AdminDisabled = "ADMIN_DISABLED";
     public const string Unavailable = "UNAVAILABLE";
     public const string InternalError = "INTERNAL_ERROR";
+
+    // Chaos mode: the broker failed on purpose.
+    public const string ChaosUnavailable = "CHAOS_UNAVAILABLE";
+    public const string ChaosLostResponse = "CHAOS_LOST_RESPONSE";
 }

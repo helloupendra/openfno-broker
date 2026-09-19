@@ -24,10 +24,16 @@ public sealed class QuoteBook : IQuoteBook
 
     public Quote? Find(string symbol) => _quotes.GetValueOrDefault(symbol);
 
+    /// <summary>Forgets a symbol's quote, as when a hand-set sandbox price is withdrawn.</summary>
+    public bool Remove(string symbol) => _quotes.TryRemove(symbol, out _);
+
     /// <summary>Keeps the newest quote; a tick that arrives late does not overwrite a newer one.</summary>
+    public event Action<Quote>? Updated;
+
     public void Update(Quote quote)
     {
-        _quotes.AddOrUpdate(quote.Symbol, quote, (_, existing) => quote.At >= existing.At ? quote : existing);
+        var stored = _quotes.AddOrUpdate(quote.Symbol, quote, (_, existing) => quote.At >= existing.At ? quote : existing);
+        if (ReferenceEquals(stored, quote)) Updated?.Invoke(quote);
 
         var ticks = quote.At.UtcTicks;
         var seen = Interlocked.Read(ref _latestTicks);

@@ -133,4 +133,37 @@ public static class FilterExtensions
 
     public static RouteHandlerBuilder FromStaticIp(this RouteHandlerBuilder builder)
         => builder.AddEndpointFilter<StaticIpFilter>();
+
+    public static RouteHandlerBuilder WithChaos(this RouteHandlerBuilder builder)
+        => builder.AddEndpointFilter<ChaosFilter>();
+}
+
+/// <summary>
+/// Chaos mode for order calls: refuse some with 503 before anything happens,
+/// and answer some successful ones with 504 as if the gateway timed out,
+/// though the broker did the work.
+/// </summary>
+public sealed class ChaosFilter : IEndpointFilter
+{
+    private readonly OpenFno.Broker.Application.Live.ChaosSettings _chaos;
+
+    public ChaosFilter(OpenFno.Broker.Application.Live.ChaosSettings chaos) => _chaos = chaos;
+
+    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var http = context.HttpContext;
+        if (_chaos.Roll(_chaos.UnavailablePercent))
+            return ApiResults.Error(http, new BrokerError(ErrorCodes.ChaosUnavailable,
+                "The broker is unavailable (simulated fault, chaos mode). Nothing was done.", ErrorKind.Unavailable));
+
+        var result = await next(context);
+        if (http.Trace().OrderId is not null && _chaos.Roll(_chaos.LostResponsePercent) && result is IStatusCodeHttpResult { StatusCode: 200 })
+        {
+            http.Trace().ErrorCode = ErrorCodes.ChaosLostResponse;
+            return Results.Json(new ErrorBody(new ErrorDetail(ErrorCodes.ChaosLostResponse,
+                "Gateway timeout (simulated fault, chaos mode). The request may or may not have been processed: check the order book.")),
+                statusCode: StatusCodes.Status504GatewayTimeout);
+        }
+        return result;
+    }
 }

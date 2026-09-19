@@ -1,19 +1,23 @@
 using OpenFno.Broker.Api.Http;
 using OpenFno.Broker.Application.Abstractions;
 using OpenFno.Broker.Application.Engine;
+using OpenFno.Broker.Application.Live;
 using OpenFno.Broker.Application.Market;
 using OpenFno.Broker.Application.Requests;
 using OpenFno.Broker.Domain.Instruments;
 using OpenFno.Broker.Domain.Market;
 using OpenFno.Broker.Domain.Rules;
 using OpenFno.Broker.Domain.Time;
+using OpenFno.Broker.Infrastructure.Market;
 
 namespace OpenFno.Broker.Api.Endpoints;
 
 /// <summary>Whether an exchange's normal market is open now, and its hours today.</summary>
 public sealed record ExchangeStatus(Exchange Exchange, bool Open, TradingSession? Today, string? Holiday);
 
-public sealed record FeedStatus(int Quotes, DateTimeOffset? LatestTickAt);
+public sealed record FeedStatus(int Quotes, DateTimeOffset? LatestTickAt, bool RedisConfigured, long RedisTicks, bool SimulatorRunning, bool Paused);
+
+public sealed record EndOfDayRequest(DateOnly? TradingDate = null);
 
 public sealed record BackOfficeOverview(
     DateTimeOffset Now,
@@ -44,7 +48,7 @@ public static class BackOfficeEndpoints
 
         admin.MapGet("overview", async (HttpContext http, BrokerEngine engine, ExchangeCalendar calendar,
                 IInstrumentCatalog instruments, IQuoteBook quotes, RequestLog requests, ExchangeSimulationOptions exchange,
-                IClock clock, CancellationToken ct) =>
+                RedisTickFeed redis, MarketSimulator simulator, ChaosSettings chaos, IClock clock, CancellationToken ct) =>
             {
                 var overview = await engine.GetOverviewAsync(ct);
                 if (!overview.IsSuccess) return ApiResults.Error(http, overview.Error!);
@@ -63,8 +67,10 @@ public static class BackOfficeEndpoints
                     .Where(r => r.Method == "POST" && r.Path == "/api/v1/orders" && r.Status == StatusCodes.Status200OK)
                     .Select(r => r.TotalMs));
 
+                var feed = new FeedStatus(book?.Count ?? 0, book?.LatestAt, redis.Configured, redis.TicksRead,
+                    simulator.Status().Running, chaos.FeedPaused);
                 return Results.Ok(new BackOfficeOverview(now, exchange.AlwaysOpen, exchanges, instruments.Count,
-                    new FeedStatus(book?.Count ?? 0, book?.LatestAt), overview.Value, orderLatency));
+                    feed, overview.Value, orderLatency));
             })
             .WithSummary("Market, feed and today's totals");
 
@@ -97,6 +103,51 @@ public static class BackOfficeEndpoints
 
         admin.MapGet("accounts/{clientId}/requests", (string clientId, int? limit, RequestLog log)
             => Results.Ok(log.Recent(clientId, limit ?? 200)));
+
+        admin.MapGet("accounts/{clientId}/trades", async (string clientId, string? date, HttpContext http, BrokerEngine engine, CancellationToken ct)
+            => TradingEndpoints.ParseDate(http, date, out var day) ?? ApiResults.From(http, await engine.GetTradesAsync(clientId, day, ct)));
+
+        admin.MapGet("accounts/{clientId}/positions", async (string clientId, HttpContext http, BrokerEngine engine, CancellationToken ct)
+            => ApiResults.From(http, await engine.GetPositionsAsync(clientId, ct)));
+
+        admin.MapGet("accounts/{clientId}/holdings", async (string clientId, HttpContext http, BrokerEngine engine, CancellationToken ct)
+            => ApiResults.From(http, await engine.GetHoldingsAsync(clientId, ct)));
+
+        admin.MapGet("accounts/{clientId}/contract-notes", async (string clientId, string? date, HttpContext http, BrokerEngine engine, CancellationToken ct)
+            => TradingEndpoints.ParseDate(http, date, out var day) ?? ApiResults.From(http, await engine.GetContractNoteAsync(clientId, day, ct)));
+
+        admin.MapGet("accounts/{clientId}/kill-switch", async (string clientId, HttpContext http, BrokerEngine engine, CancellationToken ct)
+            => ApiResults.From(http, await engine.GetKillSwitchAsync(clientId, ct)));
+
+        admin.MapPost("accounts/{clientId}/kill-switch", async (string clientId, KillSwitchRequest request, HttpContext http, BrokerEngine engine, CancellationToken ct)
+                => ApiResults.From(http, await engine.SetKillSwitchAsync(clientId, request.Active, "admin", request.SquareOff, ct)))
+            .WithSummary("Turn an account's kill switch on or off; the back office may turn it off at any time");
+
+        admin.MapGet("chaos", (ChaosSettings chaos) => Results.Ok(chaos.Snapshot()))
+            .WithTags("Sandbox")
+            .WithSummary("The faults chaos mode injects");
+
+        admin.MapPut("chaos", (ChaosSnapshot settings, ChaosSettings chaos) =>
+            {
+                chaos.Apply(settings);
+                return Results.Ok(chaos.Snapshot());
+            })
+            .WithTags("Sandbox")
+            .WithSummary("Set the faults: extra acknowledgement latency, exchange rejections, lost responses, 503s, a paused feed");
+
+        admin.MapGet("simulator", (MarketSimulator simulator) => Results.Ok(simulator.Status()))
+            .WithTags("Sandbox")
+            .WithSummary("The offline market simulator");
+
+        admin.MapPut("simulator", (SimulatorSettings settings, HttpContext http, MarketSimulator simulator)
+                => ApiResults.From(http, simulator.Configure(settings)))
+            .WithTags("Sandbox")
+            .WithSummary("Start, stop or reconfigure the offline market: a random walk per symbol with a bid, an ask and depth");
+
+        admin.MapPost("end-of-day", async (EndOfDayRequest request, HttpContext http, BrokerEngine engine, IClock clock, CancellationToken ct)
+                => ApiResults.From(http, await engine.CloseTradingDayAsync(request.TradingDate ?? Ist.DateOf(clock.UtcNow), ct)))
+            .WithTags("Sandbox")
+            .WithSummary("Close a trading day now: expire orders, close intraday positions, settle expiries, futures and delivery, post P&L and charges");
 
         admin.MapGet("profiles", () => Results.Ok(BrokerProfiles.All.Values.Select(ProfileView.From).ToList()))
             .WithSummary("The broker profiles accounts can trade under");

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenFno.Broker.Application.Abstractions;
+using OpenFno.Broker.Application.Live;
 using OpenFno.Broker.Domain.Events;
 using OpenFno.Broker.Domain.Market;
 using OpenFno.Broker.Domain.Orders;
@@ -32,6 +33,8 @@ public sealed partial class BrokerEngine
     private readonly ISecretProtector _protector;
     private readonly IScheduler _scheduler;
     private readonly ExchangeSimulationOptions _options;
+    private readonly EventHub _hub;
+    private readonly ChaosSettings _chaos;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly BrokerState _state = new();
@@ -45,7 +48,9 @@ public sealed partial class BrokerEngine
         ExchangeCalendar calendar,
         ISecretProtector protector,
         IScheduler scheduler,
-        ExchangeSimulationOptions options)
+        ExchangeSimulationOptions options,
+        EventHub hub,
+        ChaosSettings chaos)
     {
         _journal = journal;
         _clock = clock;
@@ -55,9 +60,14 @@ public sealed partial class BrokerEngine
         _protector = protector;
         _scheduler = scheduler;
         _options = options;
+        _hub = hub;
+        _chaos = chaos;
     }
 
     public bool IsStarted => _started;
+
+    /// <summary>Whether any order on the symbol could fill; asked on every tick, without the lock.</summary>
+    public bool HasLiveOrders(string symbol) => _state.LiveSymbolCounts.ContainsKey(symbol);
 
     /// <summary>
     /// Rebuilds the state from the journal. Orders that were on their way to
@@ -111,8 +121,8 @@ public sealed partial class BrokerEngine
         public static Outcome<T> Of(BrokerEvent e, Func<BrokerState, Result<T>> answer, Action? afterCommit = null)
             => new([e], answer, afterCommit);
 
-        public static Outcome<T> Of(IReadOnlyList<BrokerEvent> events, Func<BrokerState, Result<T>> answer)
-            => new(events, answer, null);
+        public static Outcome<T> Of(IReadOnlyList<BrokerEvent> events, Func<BrokerState, Result<T>> answer, Action? afterCommit = null)
+            => new(events, answer, afterCommit);
 
         public static Outcome<T> Nothing(T value) => new([], _ => value, null);
 
@@ -129,6 +139,7 @@ public sealed partial class BrokerEngine
 
         Result<T> answer;
         Action? afterCommit;
+        List<BrokerEvent>? committed = null;
         try
         {
             if (timing is not null) timing.QueueWait = CommandTiming.Since(waitStarted);
@@ -151,6 +162,7 @@ public sealed partial class BrokerEngine
                 if (timing is not null) timing.Journal = CommandTiming.Since(journalStarted);
 
                 foreach (var e in stamped) _state.Apply(e);
+                committed = stamped;
             }
 
             answer = outcome.Answer(_state);
@@ -161,6 +173,7 @@ public sealed partial class BrokerEngine
             _gate.Release();
         }
 
+        if (committed is not null) _hub.Publish(committed);
         afterCommit?.Invoke();
         return answer;
     }
