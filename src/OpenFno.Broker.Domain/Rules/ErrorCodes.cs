@@ -11,6 +11,7 @@ public static class ErrorCodes
 {
     // The request is not a valid order. No order is created (HTTP 400).
     public const string InvalidRequest = "INVALID_REQUEST";
+    public const string NotFound = "NOT_FOUND";
     public const string UnknownSymbol = "UNKNOWN_SYMBOL";
     public const string InstrumentNotTradable = "INSTRUMENT_NOT_TRADABLE";
     public const string InstrumentExpired = "INSTRUMENT_EXPIRED";

@@ -93,6 +93,7 @@ curl -s -X DELETE localhost:5310/api/v1/orders/26091800000001 -H "Authorization:
 | `GET /api/v1/profile` | The limits the account trades under |
 | `GET /api/v1/instruments?symbol=NSE:NIFTY26SEPFUT` | Lot size, tick size, freeze quantity, session |
 | `GET /api/v1/quotes?symbol=NSE:NIFTY26SEPFUT` | The last price the simulated exchange has |
+| `GET /api/v1/whoami` | The IP address the broker sees for you, which is the one the static-IP check compares. No token needed |
 
 ## Order statuses
 

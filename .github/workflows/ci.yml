@@ -36,3 +36,21 @@ jobs:
         run: dotnet test -c Release --no-build
         env:
           BROKER_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=test;Database=broker_test
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run build

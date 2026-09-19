@@ -39,20 +39,36 @@ real money. This service is the second world, without the money.
 | **Checks** | Instrument, market hours and holidays, whole lots, freeze quantity, tick size, stop-trigger geometry, product by segment, market-order and commodity-IOC bans, margin, holdings, price band, intraday cut-off, rate limits |
 | **Records** | The journal (every event, gap-free, replayed on start), order histories with a timestamp per step, and a request log with auth, rate-limit, queue, decision and journal time per call |
 | **Market** | 1,27,000+ instruments from the FYERS and Dhan public masters; live prices from the OpenFNO platform's Redis tick stream |
+| **Web console** | A back office in the browser: market and feed status, today's totals and latencies, accounts with TOTP onboarding, every order's timeline, the journal, each call's latency split, and a trader terminal that places orders through the public API |
 
 Next: a matching engine that fills against live ticks and depth, with a
 tradebook, positions, holdings, charges, contract notes, MIS square-off and a
 kill switch. See [the roadmap](#roadmap).
 
+![An order's history in the back office: placed, then acknowledged by the simulated exchange 44 ms later](docs/images/order-timeline.jpg)
+
+![The trader terminal: a market order refused with the exchange rule that forbids it, beside the account's order book](docs/images/trader-terminal.jpg)
+
 ## Run it
 
-You need the .NET 10 SDK.
+You need the .NET 10 SDK and Node 24.
 
 ```sh
 scripts/fetch-instruments.sh          # ~60 MB of public instrument masters into data/instruments
+(cd web && npm ci && npm run build)   # the console, built into the API's wwwroot
 cd src/OpenFno.Broker.Api
 Exchange__AlwaysOpen=true dotnet run  # http://localhost:5310, in-memory, admin key "dev-admin-key"
 ```
+
+Open http://localhost:5310 and sign in with the admin key. The walk-through:
+
+1. Open an account and scan its TOTP QR code into an authenticator app.
+2. Pay in some funds.
+3. Issue an API app for `127.0.0.1`.
+4. Log in on the Trader terminal page and place orders.
+
+While working on the console, `npm run dev` in `web/` serves it on :5320 with
+hot reload, against the broker on :5310.
 
 `Exchange__AlwaysOpen=true` ignores trading hours, so you can try it at night
 or at a weekend. Leave it off to get real market hours.
@@ -80,7 +96,8 @@ src/
   OpenFno.Broker.Domain          rules, order state machine, margin, rate limiter, TOTP, events — no I/O
   OpenFno.Broker.Application     the engine, its state and ports
   OpenFno.Broker.Infrastructure  Postgres journal, Redis feed, instrument masters, calendar
-  OpenFno.Broker.Api             HTTP, filters, request tracing
+  OpenFno.Broker.Api             HTTP, filters, request tracing; serves the console
+web/                             the back-office console (React, TypeScript, Vite)
 tests/                           unit, engine, replay and HTTP tests
 data/calendar                    exchange holidays and special sessions, with their circulars
 data/reference                   commodity lot sizes
@@ -90,6 +107,7 @@ data/reference                   commodity lot sizes
 
 ```sh
 dotnet test
+(cd web && npm test)
 ```
 
 The Postgres tests run when `BROKER_TEST_POSTGRES` points at a throwaway
@@ -102,8 +120,7 @@ database. CI starts one.
 2. **After the fill.** Charges and contract notes (brokerage, STT, exchange
    and SEBI fees, stamp duty, GST), MIS auto square-off, a client kill switch,
    end-of-day settlement.
-3. **Web console.** The back office in a browser.
-4. **The OpenFNO engine as a client.** A broker adapter in the platform, with
+3. **The OpenFNO engine as a client.** A broker adapter in the platform, with
    an execution layer that works out an order's fate from the order book
    after a timeout, as it must with a real broker.
 

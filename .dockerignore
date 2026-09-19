@@ -5,3 +5,4 @@
 data/instruments
 data/keys
 tests
+src/OpenFno.Broker.Api/wwwroot
