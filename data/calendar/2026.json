@@ -1,0 +1,366 @@
+{
+  "_about": "Trading holidays and special sessions for 2026, from each exchange's own circulars (the source field names the circular). MORNING_SESSION: MCX closed until 17:00, evening trades. EVENING_SESSION: MCX trades the morning only. Add next year's file each December.",
+  "holidays": [
+    {
+      "exchange": "MCX",
+      "date": "2026-01-01",
+      "name": "New Year Day",
+      "closure": "EVENING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-01-15",
+      "name": "Municipal Corporation elections (Maharashtra)",
+      "closure": "FULL_DAY",
+      "source": "bseindia.com trading holidays list (MCGM election day)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-01-15",
+      "name": "Municipal Corporation elections (Maharashtra)",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/017/2026 (12 Jan 2026), as reported; evening session with selected agri commodities"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-01-15",
+      "name": "Municipal Corporation elections (Maharashtra)",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/72260, NSE/FAOP/72262 (12 Jan 2026)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-01-26",
+      "name": "Republic Day",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-01-26",
+      "name": "Republic Day",
+      "closure": "FULL_DAY",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-01-26",
+      "name": "Republic Day",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-03-03",
+      "name": "Holi",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-03-03",
+      "name": "Holi (2nd day)",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-03-03",
+      "name": "Holi",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-03-26",
+      "name": "Shri Ram Navami",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-03-26",
+      "name": "Shri Ram Navmi",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-03-26",
+      "name": "Shri Ram Navami",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-03-31",
+      "name": "Shri Mahavir Jayanti",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-03-31",
+      "name": "Shri Mahavir Jayanti",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-03-31",
+      "name": "Shri Mahavir Jayanti",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "closure": "FULL_DAY",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-04-14",
+      "name": "Dr. Baba Saheb Ambedkar Jayanti",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-04-14",
+      "name": "Dr. Babasaheb Ambedkar Jayanti",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-04-14",
+      "name": "Dr. Baba Saheb Ambedkar Jayanti",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-05-01",
+      "name": "Maharashtra Day",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-05-01",
+      "name": "Maharashtra Day",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-05-01",
+      "name": "Maharashtra Day",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-05-28",
+      "name": "Bakri Id",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-05-28",
+      "name": "Bakri Id",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-05-28",
+      "name": "Bakri Id",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-06-26",
+      "name": "Muharram",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-06-26",
+      "name": "Moharram",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-06-26",
+      "name": "Muharram",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-09-14",
+      "name": "Ganesh Chaturthi",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-09-14",
+      "name": "Ganesh Chaturthi",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-09-14",
+      "name": "Ganesh Chaturthi",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-10-02",
+      "name": "Mahatma Gandhi Jayanti",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-10-02",
+      "name": "Mahatma Gandhi Jayanti",
+      "closure": "FULL_DAY",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-10-02",
+      "name": "Mahatma Gandhi Jayanti",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-10-20",
+      "name": "Dussehra",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-10-20",
+      "name": "Dussehra",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-10-20",
+      "name": "Dussehra",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-11-10",
+      "name": "Diwali Balipratipada",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-11-10",
+      "name": "Diwali Balipratipada",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-11-10",
+      "name": "Diwali Balipratipada",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-11-24",
+      "name": "Prakash Gurpurb Sri Guru Nanak Dev",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-11-24",
+      "name": "Guru Nanak Jayanti",
+      "closure": "MORNING_SESSION",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-11-24",
+      "name": "Prakash Gurpurb Sri Guru Nanak Dev",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-12-25",
+      "name": "Christmas",
+      "closure": "FULL_DAY",
+      "source": "BSE notice 20251212-8 (12 Dec 2025)"
+    },
+    {
+      "exchange": "MCX",
+      "date": "2026-12-25",
+      "name": "Christmas",
+      "closure": "FULL_DAY",
+      "source": "MCX/TRD/636/2025 (15 Dec 2025)"
+    },
+    {
+      "exchange": "NSE",
+      "date": "2026-12-25",
+      "name": "Christmas",
+      "closure": "FULL_DAY",
+      "source": "NSE/CMTR/71775, NSE/FAOP/71777 (12 Dec 2025)"
+    }
+  ],
+  "specialSessions": [
+    {
+      "exchange": "NSE",
+      "date": "2026-02-01",
+      "name": "Union Budget (Sunday live session)",
+      "opens": "09:15:00",
+      "closes": "15:30:00",
+      "source": "NSE/CMTR/72349, NSE/FAOP/72352 (16 Jan 2026)"
+    },
+    {
+      "exchange": "BSE",
+      "date": "2026-02-01",
+      "name": "Union Budget (Sunday live session)",
+      "opens": "09:15:00",
+      "closes": "15:30:00",
+      "source": "BSE notice 20260116-34 (16 Jan 2026)"
+    }
+  ]
+}

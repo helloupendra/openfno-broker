@@ -1,0 +1,19 @@
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+*.user
+*.swp
+.DS_Store
+TestResults/
+
+# Local configuration and secrets
+appsettings.Local.json
+.env
+
+# Downloaded instrument masters (scripts/fetch-instruments.sh)
+data/instruments/
+
+# Data-protection keys written by a local run
+data/keys/

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/OpenFno.Broker.Domain/OpenFno.Broker.Domain.csproj" />
+    <Project Path="src/OpenFno.Broker.Application/OpenFno.Broker.Application.csproj" />
+    <Project Path="src/OpenFno.Broker.Infrastructure/OpenFno.Broker.Infrastructure.csproj" />
+    <Project Path="src/OpenFno.Broker.Api/OpenFno.Broker.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenFno.Broker.Tests/OpenFno.Broker.Tests.csproj" />
+    <Project Path="tests/OpenFno.Broker.Api.Tests/OpenFno.Broker.Api.Tests.csproj" />
+  </Folder>
+</Solution>

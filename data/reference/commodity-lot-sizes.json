@@ -1,0 +1,13 @@
+{
+  "_about": "Units per lot for MCX contracts, by underlying, in the unit the price is quoted in (barrels, mmBtu, 10 grams, kilograms). Neither the FYERS nor the Dhan master carries these: both report 1 because their MCX quantities are in lots. A commodity whose underlying is missing here cannot be traded in the simulator. Check the MCX contract specification before adding one.",
+  "lotSizes": {
+    "CRUDEOIL": 100,
+    "CRUDEOILM": 10,
+    "NATURALGAS": 1250,
+    "NATGASMINI": 250,
+    "GOLD": 100,
+    "GOLDM": 10,
+    "SILVER": 30,
+    "SILVERM": 5
+  }
+}

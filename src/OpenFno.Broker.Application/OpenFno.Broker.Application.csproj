@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>OpenFno.Broker.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenFno.Broker.Domain\OpenFno.Broker.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
