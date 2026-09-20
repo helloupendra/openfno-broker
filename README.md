@@ -81,6 +81,14 @@ With Postgres, so that state survives restarts:
 BROKER_ADMIN_KEY=choose-a-long-random-key docker compose up --build
 ```
 
+On a machine that also runs an OpenFNO platform, add the second compose file
+so the broker prices its instruments from the platform's live tick stream:
+
+```sh
+BROKER_ADMIN_KEY=… BROKER_REDIS=algotrading_redis:6379 \
+  docker compose -f docker-compose.yml -f docker-compose.platform.yml up -d --build
+```
+
 Then follow [docs/api.md](docs/api.md) for a full session from start to
 finish: open an account, log in with TOTP, place, modify and cancel orders,
 and read the journal.
