@@ -4,6 +4,9 @@ import { admin, adminKey, ApiError } from '../lib/api';
 import type { Overview } from '../lib/types';
 import { Logo } from '../components/ui';
 
+/** A broker served from this machine, where the development admin key applies. */
+const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+
 export function SignIn() {
   const navigate = useNavigate();
   const [key, setKey] = useState('');
@@ -55,7 +58,10 @@ export function SignIn() {
           {busy ? 'Checking…' : 'Open the back office'}
         </button>
         <p className="signin__foot">
-          The key is kept in this tab only. In development it is <code>dev-admin-key</code>.
+          The key is kept in this tab only.
+          {/* The development default is worth saying on a machine where it applies,
+              and only noise — or a wrong guess — to a stranger reading a deployed one. */}
+          {isLocal && <> In development it is <code>dev-admin-key</code>.</>}
         </p>
       </form>
     </div>
