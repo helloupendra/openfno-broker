@@ -93,6 +93,48 @@ Then follow [docs/api.md](docs/api.md) for a full session from start to
 finish: open an account, log in with TOTP, place, modify and cancel orders,
 and read the journal.
 
+## Running it on a server
+
+The broker is one container plus its Postgres, published on loopback, with a
+Cloudflare tunnel in front — the same shape as the platform it serves.
+
+```sh
+git clone https://github.com/helloupendra/openfno-broker.git && cd openfno-broker
+scripts/fetch-instruments.sh
+
+umask 077 && cat > .env <<'ENV'
+BROKER_ADMIN_KEY=<openssl rand -hex 32>
+BROKER_DB_PASSWORD=<openssl rand -hex 24>
+BROKER_CLIENT_IP_HEADER=CF-Connecting-IP
+BROKER_TRUSTED_PROXIES=172.16.0.0/12
+BROKER_ALWAYS_OPEN=false
+ENV
+
+set -a && . ./.env && set +a
+docker compose up -d --build            # add -f docker-compose.platform.yml for live ticks
+curl -s localhost:5310/health
+```
+
+Then point a hostname at it. With a token-managed Cloudflare tunnel this is one
+entry in the dashboard (Zero Trust → Networks → Tunnels → your tunnel → Public
+Hostname): subdomain `broker`, your domain, service `http://localhost:5310`.
+The DNS record is created with it.
+
+Two settings matter once it is public:
+
+- **`BROKER_CLIENT_IP_HEADER` and `BROKER_TRUSTED_PROXIES`.** The tunnel reaches
+  the container across the Docker bridge, so without the bridge in the trusted
+  list every caller looks like the gateway and the static-IP rule checks
+  nothing. `GET /api/v1/whoami` shows what the broker thinks your address is —
+  check it from outside before issuing an app.
+- **`BROKER_ALWAYS_OPEN`.** Left `false`, the broker keeps real market hours, so
+  an order at night is refused with `MARKET_CLOSED` — which is the point of it,
+  but it makes a night-time demo look dead. The sandbox's market simulator fills
+  that gap without pretending the exchange is open.
+
+Back up `broker-db` and `broker-keys` together: without the keys the stored TOTP
+secrets cannot be decrypted and no account can log in.
+
 ## How it is built
 
 A single writer applies commands one at a time. Each command's events are
