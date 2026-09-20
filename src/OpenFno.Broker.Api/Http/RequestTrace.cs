@@ -70,7 +70,7 @@ public sealed class RequestTraceMiddleware
         var trace = new RequestTrace
         {
             ReceivedAt = _clock.UtcNow,
-            ClientIp = ResolveClientIp(context, _options.ClientIpHeader),
+            ClientIp = ResolveClientIp(context, _options.ClientIpHeader, _options.TrustedProxies),
         };
         context.Features.Set(trace);
 
@@ -130,18 +130,39 @@ public sealed class RequestTraceMiddleware
 
     /// <summary>
     /// The caller's IP. A proxy header is believed only when the connection
-    /// comes from this machine (the tunnel or proxy); from anywhere else it
+    /// comes from this machine or from a listed proxy; from anywhere else it
     /// could be forged, and the socket address is used.
     /// </summary>
-    public static string? ResolveClientIp(HttpContext context, string? header)
+    public static string? ResolveClientIp(HttpContext context, string? header, IReadOnlyList<string>? trustedProxies = null)
     {
         var peer = context.Connection.RemoteIpAddress;
         if (!string.IsNullOrWhiteSpace(header)
-            && (peer is null || IPAddress.IsLoopback(peer))
+            && (peer is null || IPAddress.IsLoopback(peer) || IsTrustedProxy(peer, trustedProxies))
             && context.Request.Headers.TryGetValue(header, out var values)
             && Secrets.NormalizeIp(values.ToString().Split(',')[0]) is { } forwarded)
             return forwarded;
 
         return peer is null ? null : Secrets.NormalizeIp(peer.ToString());
+    }
+
+    /// <summary>Whether the connection came from an address the operator vouched for.</summary>
+    private static bool IsTrustedProxy(IPAddress peer, IReadOnlyList<string>? trusted)
+    {
+        if (trusted is null || trusted.Count == 0) return false;
+        foreach (var entry in trusted)
+        {
+            var text = entry?.Trim();
+            if (string.IsNullOrEmpty(text)) continue;
+            var slash = text.IndexOf('/');
+            if (slash < 0)
+            {
+                if (IPAddress.TryParse(text, out var one) && one.Equals(peer)) return true;
+                continue;
+            }
+
+            if (IPNetwork.TryParse(text, out var network) && network.Contains(peer)) return true;
+        }
+
+        return false;
     }
 }
