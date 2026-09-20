@@ -27,6 +27,12 @@ services:
       Broker__Storage: Postgres
       Broker__ConnectionString: Host=postgres;Database=openfno_broker;Username=broker;Password=${BROKER_DB_PASSWORD:-broker}
       Broker__AdminKey: ${BROKER_ADMIN_KEY:?Set BROKER_ADMIN_KEY to a long random value}
+      # Behind a Cloudflare tunnel the caller's real address arrives in a header,
+      # and the tunnel reaches this container across the Docker bridge rather
+      # than on loopback — so the bridge has to be vouched for, or every caller
+      # would look like the gateway and the static-IP rule would check nothing.
+      Broker__ClientIpHeader: ${BROKER_CLIENT_IP_HEADER:-}
+      Broker__TrustedProxies__0: ${BROKER_TRUSTED_PROXIES:-}
       MarketData__Redis__Configuration: ${BROKER_REDIS:-}
       Exchange__AlwaysOpen: ${BROKER_ALWAYS_OPEN:-false}
     ports:

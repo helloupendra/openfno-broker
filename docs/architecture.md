@@ -246,7 +246,7 @@ orders pass the static-IP check and rate limits like any client's.
 | App secrets and access tokens | 256-bit random. Only their SHA-256 is stored. They are shown once. |
 | TOTP secrets | Encrypted with ASP.NET Core data protection before they reach the journal. The key ring lives in `data/keys` and **must be backed up with the database**: without it no account can log in. |
 | Journal output | `GET /journal` hides secret fields and their hashes. |
-| Caller IP behind a proxy | `Broker:ClientIpHeader` (for example `CF-Connecting-IP`) is believed only when the connection comes from this machine, never from the internet. |
+| Caller IP behind a proxy | `Broker:ClientIpHeader` (for example `CF-Connecting-IP`) is believed only when the connection comes from this machine, or from an address or range listed in `Broker:TrustedProxies`. In a container the tunnel arrives over the Docker bridge, so its gateway has to be listed; otherwise every caller looks like the gateway and the static-IP rule checks nothing. Never believed from the internet. |
 | Admin API | Off unless `Broker:AdminKey` is set; the key is compared in constant time. |
 | Login guessing | Login is rate-limited per caller IP. A TOTP code is valid once. |
 
